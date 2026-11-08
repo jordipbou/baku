@@ -1,6 +1,5 @@
 \ Baku — Shen on ANS Forth.
 \
-\ v0.1 loader. Sources are added here as the primitives land.
+\ Entry point. The implementation layers are described in README.md.
 
-INCLUDE value.4th
-
+\ The loader is intentionally empty until the first layer lands.
