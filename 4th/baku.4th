@@ -12,7 +12,9 @@
 [IF]
 	S" value.4th" INCLUDED
 	S" reader.4th" INCLUDED
+	S" frontend.4th" INCLUDED
 [ELSE]
 	S" 4th/value.4th" INCLUDED
 	S" 4th/reader.4th" INCLUDED
+	S" 4th/frontend.4th" INCLUDED
 [THEN]
