@@ -117,11 +117,18 @@ s" foo" baku-intern s" Foo" baku-intern = 0= 60 check
 s" foo" baku-intern s" bar" baku-intern = 0= 61 check
 s" a_b" baku-intern s" a-b" baku-intern = 0= 62 check
 
+\ Empty strings and empty vectors are heap objects, distinct from each other and
+\ from the immediate empty list.
+baku-nongc-reset
+s" " baku-string baku-nil = 0= 63 check
+0 baku-vector baku-nil = 0= 64 check
+s" " baku-string 0 baku-vector = 0= 65 check
+
 \ Boxed floating-point values round-trip through the value layer.
 baku-nongc-reset
 3.5e baku-float
-dup baku-float? 63 check
-dup baku-float@ 3.5e 0e f~ 64 check
+dup baku-float? 66 check
+dup baku-float@ 3.5e 0e f~ 67 check
 drop
 
 ." BAKU-TEST-DONE" cr
