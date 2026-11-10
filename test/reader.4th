@@ -415,6 +415,7 @@ baku-read-close
 \ The reader is usable after an error.
 S" 42" read-one drop baku-fixnum-value 42 assert=
 S" )" baku-read-string ' baku-read-form catch baku-read-syntax = assert-true
+S" (foo" baku-read-string ' baku-read-form catch baku-read-eof = assert-true
 
 \ BAKU-READ-ALL streams forms and releases scratch after each callback.
 variable all-count
