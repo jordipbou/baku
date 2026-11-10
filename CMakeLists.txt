@@ -14,10 +14,16 @@ if(NOT GFORTH_EXECUTABLE)
 endif()
 
 include(FetchContent)
+# The pinned corpus contains one form with about 45k cons cells, and Sloth's
+# default stack and dictionary are too small for the reader tests.  These are
+# test-platform limits; the Baku sources themselves do not require them.
+set(SLOTH_DICTIONARY_SIZE 8388608 CACHE STRING
+	"Sloth dictionary size for the Baku test platform" FORCE)
+add_compile_definitions(SLOTH_STACK_SIZE=16384 SLOTH_RETURN_STACK_SIZE=16384)
 FetchContent_Declare(
 	sloth
 	GIT_REPOSITORY https://github.com/jordipbou/sloth
-	GIT_TAG 12f7189d65e80d3617ff15967a831c01cb254ef2
+	GIT_TAG 359b81b6d64b2e56b4b9d6d34a174f32d75d1175
 	SOURCE_SUBDIR platforms/c
 	EXCLUDE_FROM_ALL
 )

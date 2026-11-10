@@ -94,8 +94,7 @@ variable baku-new-kind
 		baku-region-starts i cells + @ baku-new-end @ @ u< and
 		if baku-region-overlap throw then
 	loop
-	baku-region-count @
-	dup >r
+	baku-region-count @ >r
 	baku-new-kind @ baku-region-kinds r@ cells + !
 	baku-new-end @ baku-region-ends r@ cells + !
 	baku-new-start @ baku-region-starts r@ cells + !
@@ -149,20 +148,48 @@ variable baku-assert-code
 	drop ;
 
 \ ---------------------------------------------------------------------------
-\ Non-GC heap: a block in the Forth dictionary
+\ Non-GC heap and the selected bump heap
 \ ---------------------------------------------------------------------------
+\
+\ The non-GC heap is permanent: symbols and constants live there for the whole
+\ process.  The reader needs a second, temporary bump heap for the parse tree of
+\ one top-level form; BAKU-ALLOC always uses the currently selected heap, so
+\ every constructor (cons, string, vector, float) follows the selection without
+\ a second implementation.  Interning a symbol explicitly binds the non-GC heap
+\ because symbols outlive the form that introduced them.
+\
+\ 512 KiB holds the full distinct-symbol set of the pinned kernel (measured at
+\ about 232 KiB) with headroom for constants.  The reader scratch block lives in
+\ the reader layer; the heap selector below is what makes it usable.
 
-65536 constant baku-nongc-size
+524288 constant baku-nongc-size
 
 align create baku-nongc-block baku-nongc-size allot align
 
 variable baku-nongc-here
 variable baku-nongc-end
 
+\ Addresses of the selected heap's HERE and END variables.
+variable baku-heap-here
+variable baku-heap-end
+
+: baku-use-heap ( here-addr end-addr -- )
+	baku-heap-end ! baku-heap-here ! ;
+
+: baku-use-nongc ( -- )
+	baku-nongc-here baku-nongc-end baku-use-heap ;
+
+: baku-heap-save ( -- here-addr end-addr )
+	baku-heap-here @ baku-heap-end @ ;
+
+: baku-heap-restore ( here-addr end-addr -- )
+	baku-use-heap ;
+
 : baku-nongc-init ( -- )
 	baku-nongc-block baku-nongc-here !
 	baku-nongc-block baku-nongc-size + baku-nongc-end !
-	baku-nongc-block baku-nongc-here baku-region-nongc baku-region+ drop ;
+	baku-nongc-block baku-nongc-here baku-region-nongc baku-region+ drop
+	baku-use-nongc ;
 
 : baku-nongc-used ( -- bytes ) baku-nongc-here @ baku-nongc-block - ;
 : baku-nongc-free ( -- bytes ) baku-nongc-end @ baku-nongc-here @ - ;
@@ -178,13 +205,13 @@ variable baku-alloc-type
 : baku-alloc ( payload-bytes type -- obj )
 	baku-alloc-type ! baku-alloc-payload !
 	baku-alloc-payload @ baku-round-cells cell +   ( total )
-	baku-nongc-here @                              ( total old )
-	2dup + baku-nongc-end @ u> if
+	baku-heap-here @ @                             ( total old )
+	2dup + baku-heap-end @ @ u> if
 		2drop baku-out-of-memory throw
 	then
 	( total old )
 	dup >r                                         ( total old | R: old )
-	over + baku-nongc-here !                       ( total )
+	over + baku-heap-here @ !                      ( total )
 	drop
 	baku-alloc-payload @ 8 lshift baku-alloc-type @ or ( header )
 	r@ !                                           ( -- | R: old )
@@ -192,6 +219,12 @@ variable baku-alloc-type
 
 : baku-object-total ( obj -- bytes )
 	baku-object-size baku-round-cells cell + ;
+
+\ Rewrite an object's logical payload size.  A builder allocates capacity first
+\ and records the exact length here; object-total still rounds for a collector.
+: baku-object-size! ( payload-bytes obj -- )
+	baku-invalid-object baku-assert-object
+	dup @ 255 and rot 8 lshift or swap ! ;
 
 \ ---------------------------------------------------------------------------
 \ Cons
@@ -211,6 +244,12 @@ variable baku-alloc-type
 
 : baku-tl ( obj -- tl )
 	baku-type-cons baku-cons-expected baku-assert-type 2 cells + @ ;
+
+: baku-set-hd ( value cons -- )
+	baku-type-cons baku-cons-expected baku-assert-type cell + ! ;
+
+: baku-set-tl ( value cons -- )
+	baku-type-cons baku-cons-expected baku-assert-type 2 cells + ! ;
 
 \ ---------------------------------------------------------------------------
 \ Strings: a byte-counted payload, no terminator
@@ -294,6 +333,8 @@ variable baku-match-addr
 variable baku-match-len
 variable baku-intern-addr
 variable baku-intern-len
+variable baku-new-sym
+variable baku-new-bucket
 
 : baku-symbol-reset ( -- )
 	baku-symbol-buckets baku-symbol-buckets-count 0 ?do
@@ -340,16 +381,20 @@ variable baku-intern-len
 		baku-intern-addr @ baku-intern-len @             ( ... head c-addr u )
 		baku-symbol-matches?                             ( h bucket head flag )
 		if nip nip exit then                             ( h bucket head )
-		@                                                ( h bucket next )
+		cell + @                                         ( h bucket next )
 	repeat
-	drop drop                                            ( h )
-	baku-intern-len @ cell + baku-type-symbol baku-alloc ( h sym )
-	dup >r                                               ( h sym | R: sym )
-	0 r@ cell + !
-	baku-intern-addr @ r@ 2 cells + baku-intern-len @ cmove
-	baku-symbol-buckets rot cells +                       ( sym bucket )
-	r@ swap !
-	r> drop ;
+	drop                                                 ( h bucket )
+	baku-new-bucket ! drop                               ( -- )
+	\ Symbols are permanent: bind the non-GC heap even when the reader is
+	\ building a temporary form in scratch.
+	baku-heap-here @ >r baku-heap-end @ >r
+	baku-use-nongc
+	baku-intern-len @ cell + baku-type-symbol baku-alloc ( sym )
+	dup baku-new-sym !
+	baku-new-bucket @ @ over cell + !                    ( sym )
+	baku-intern-addr @ baku-new-sym @ 2 cells + baku-intern-len @ cmove
+	baku-new-sym @ baku-new-bucket @ !
+	r> r> swap baku-heap-restore ;
 
 : baku-symbol? ( x -- flag )
 	dup baku-object? if baku-object-type baku-type-symbol = else drop false then ;

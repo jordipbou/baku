@@ -1,0 +1,2 @@
+(defun good () 1)
+(defun broken () "unterminated

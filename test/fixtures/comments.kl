@@ -1,0 +1,6 @@
+\\ line comment before the first form
+(defun commented (X) X) \\ trailing line comment
+\* block comment
+   spanning lines *\
+(defun after-block () 2)
+; # r# n#->n

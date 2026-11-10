@@ -58,7 +58,7 @@ dup baku-object-size 2 cells = 30 check
 dup baku-region-of baku-region-nongc = 31 check
 dup baku-hd baku-fixnum-value 1 = 32 check
 dup baku-tl baku-fixnum-value 2 = 33 check
-dup aligned = 34 check
+dup dup aligned = 34 check
 drop
 baku-nongc-used 3 cells = 35 check
 
