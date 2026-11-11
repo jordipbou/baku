@@ -5,8 +5,10 @@
 \ path the M5 primitive layer will use, so the dispatch, arity check and
 \ environment rules are tested here rather than in a test-only evaluator.
 \
-\ Tail calls, currying and the error-object payload are later M4/M5 work; this
-\ file proves the tree-walking reference on exact-arity calls.
+\ Tail calls are tested at the end with zero-allocation counters so the deep
+\ chains do not depend on the size of the non-GC heap.  Currying and the
+\ error-object payload are later M4/M5 work; this file proves the tree-walking
+\ reference on exact-arity calls.
 
 [DEFINED] gforth
 [IF]
@@ -178,5 +180,73 @@ s" (add1 1 2)" baku-eval-arity 47 check-error
 s" (1 2)" baku-eval-not-callable 48 check-error
 s" (if X)" baku-front-arity 49 check-error
 s" (+ 1 2)" run baku-fixnum-value 3 = 50 check
+
+\ ---------------------------------------------------------------------------
+\ Tail calls: constant return-stack space
+\
+\ The zero-parameter counters allocate nothing per iteration, so the deep tests
+\ exercise the trampoline and not the heap.  Without tail-call elimination the
+\ same chain overflows Sloth's 16384-cell return stack far below 100,000; the
+\ parameterised countdown additionally proves that argument binding survives
+\ tail-call elimination.  A tail call inside a trap-error protected form keeps
+\ the handler frame, which is why that case is tested separately.
+\ ---------------------------------------------------------------------------
+
+variable tail-counter
+
+: pset ( n -- ) baku-fixnum-value tail-counter ! ;
+
+: pstep ( -- flag )
+	tail-counter @ 0> if
+		tail-counter @ 1- tail-counter !
+		baku-true
+	else
+		baku-false
+	then ;
+
+' pset 1 s" pset" baku-intern baku-defprim
+' pstep 0 s" pstep" baku-intern baku-defprim
+
+s" (defun tail-spin () (if (pstep) (tail-spin) 0))" run drop
+s" (defun tail-even () (if (pstep) (tail-odd) 0))" run drop
+s" (defun tail-odd () (if (pstep) (tail-even) 0))" run drop
+
+\ Self tail recursion, 100,000 deep, with no heap growth during the loop.
+s" (pset 100000)" run drop
+baku-nongc-used >r
+s" (tail-spin)" run baku-fixnum-value 0 = 51 check
+baku-nongc-used r> - 4096 < 52 check
+tail-counter @ 0 = 53 check
+
+\ Mutual tail recursion, 100,000 deep.
+s" (pset 100000)" run drop
+s" (tail-even)" run baku-fixnum-value 0 = 54 check
+tail-counter @ 0 = 55 check
+
+\ A parameterised tail call carries its argument through the trampoline.
+s" (defun tail-count (N) (if (eq N 0) 0 (tail-count (- N 1))))" run drop
+s" (tail-count 2500)" run baku-fixnum-value 0 = 56 check
+
+\ Tail position through COND, LET and AND.
+s" (defun tail-cond () (cond ((pstep) (tail-cond)) (true 0)))" run drop
+s" (pset 1000)" run drop
+s" (tail-cond)" run baku-fixnum-value 0 = 57 check
+
+s" (defun tail-let () (let X 0 (if (pstep) (tail-let) X)))" run drop
+s" (pset 1000)" run drop
+s" (tail-let)" run baku-fixnum-value 0 = 58 check
+
+s" (defun tail-and () (and (pstep) (tail-and)))" run drop
+s" (pset 1000)" run drop
+s" (tail-and)" run baku-false = 59 check
+
+\ The top-level entry point resolves a tail call too.
+s" (if true (id 3) 4)" run baku-fixnum-value 3 = 60 check
+
+\ A tail call inside a TRAP-ERROR protected form still runs under its handler.
+s" (trap-error (if true (throw 7) 0) (lambda E E))" run
+baku-fixnum-value 7 = 61 check
+s" (trap-error (trap-error (if true (throw 1) 0) (lambda E (throw (+ E 1)))) (lambda E E))" run
+baku-fixnum-value 2 = 62 check
 
 ." BAKU-TEST-DONE" cr

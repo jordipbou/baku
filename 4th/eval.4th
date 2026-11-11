@@ -29,11 +29,26 @@
 \ a Shen error object; it is passed to the handler as a fixnum so a Forth failure
 \ remains catchable.  The error-object payload and SIMPLE-ERROR belong to M5.
 \
-\ Not here yet: on-demand currying, the self-tail loop and the trampoline.  A
-\ call must supply exactly the closure's arity; a program that needs partial
-\ application is rejected with BAKU-EVAL-ARITY until currying lands.  Recursion
-\ therefore uses the Forth return stack and the interpreter is not yet safe for
-\ the kernel's deepest tail-recursive walks.
+\ Tail calls: the front end marks a call that sits in a tail position.  Instead
+\ of applying such a call recursively, BAKU-EVAL-CALL stores the closure and
+\ argument list in BAKU-TAIL-FN / BAKU-TAIL-ARGS and returns BAKU-TAIL-PENDING.
+\ Every enclosing evaluator frame returns that marker unchanged; the nearest
+\ trampoline (BAKU-APPLY, BAKU-EVAL and the trap-error protected frame) applies
+\ the request in a BEGIN ... WHILE ... REPEAT loop.  Self and mutual tail
+\ recursion therefore reuse one trampoline iteration and do not grow the Forth
+\ return stack.  TRAP-ERROR resolves a tail request inside its CATCH so the
+\ handler frame survives; a tail call inside the protected form keeps that
+\ frame, which is the semantics the tail-call spec requires.
+\
+\ BAKU-TAIL-PENDING is an internal evaluator marker, never a Shen value: the
+\ reader parses the textual fixnum 26 as 53 ((2n)+1), so this cell can only be
+\ produced here.
+\
+\ Not here yet: on-demand currying.  A call must supply exactly the closure's
+\ arity; a program that needs partial application is rejected with
+\ BAKU-EVAL-ARITY until currying lands.  The trampoline already returns an
+\ ordinary value for any non-marker result, so a partial-application closure
+\ will flow through it unchanged when currying lands.
 
 \ ---------------------------------------------------------------------------
 \ Errors
@@ -47,6 +62,16 @@
 -278 constant baku-eval-malformed
 
 variable baku-raised-value
+
+\ Pending tail call: BAKU-TAIL-PENDING is returned instead of a value, and the
+\ trampoline consumes the two variables and applies the request.  The marker has
+\ the immediate tag pattern but is not one of the three Shen immediates.
+26 constant baku-tail-pending
+
+variable baku-tail-fn
+variable baku-tail-args
+
+: baku-tail-pending? ( x -- flag ) baku-tail-pending = ;
 
 : baku-raise ( value -- )
 	baku-raised-value ! baku-eval-raised throw ;
@@ -260,23 +285,44 @@ variable baku-body-code
 variable baku-apply-fn
 variable baku-apply-args
 
+\ The trampoline.  Each iteration applies one closure; an interpreted body that
+\ ends in a tail call leaves a request instead of recursing, so the loop adopts
+\ the new closure and arguments without touching the return stack.  A primitive
+\ or a body that produced an ordinary value ends the loop.  This is also where
+\ a future partial-application closure returns unchanged, because it is just a
+\ value here.
 : baku-apply ( closure args -- value )
-	baku-apply-args ! baku-apply-fn !
-	baku-apply-fn @ baku-closure? 0= if baku-eval-not-callable throw then
-	baku-apply-args @ baku-list-length
-	baku-apply-fn @ baku-closure-arity <>
-	if baku-eval-arity throw then
-	baku-apply-fn @ baku-closure-kind baku-closure-interpreted = if
-		baku-apply-fn @ baku-closure-env
-		baku-apply-args @
-		baku-apply-fn @ baku-closure-code
-		baku-eval-body
-	else
-		baku-apply-fn @ baku-closure-code
-		baku-apply-fn @ baku-closure-arity
-		baku-apply-args @
-		baku-apply-primitive
-	then ;
+	begin
+		baku-apply-args ! baku-apply-fn !
+		baku-apply-fn @ baku-closure? 0= if baku-eval-not-callable throw then
+		baku-apply-args @ baku-list-length
+		baku-apply-fn @ baku-closure-arity <>
+		if baku-eval-arity throw then
+		baku-apply-fn @ baku-closure-kind baku-closure-interpreted = if
+			baku-apply-fn @ baku-closure-env
+			baku-apply-args @
+			baku-apply-fn @ baku-closure-code
+			baku-eval-body
+		else
+			baku-apply-fn @ baku-closure-code
+			baku-apply-fn @ baku-closure-arity
+			baku-apply-args @
+			baku-apply-primitive
+		then
+		dup baku-tail-pending? if
+			drop baku-tail-fn @ baku-tail-args @
+		else
+			exit
+		then
+	again ;
+
+\ Resolve a value that may be a pending tail call.  Used at the top level and
+\ inside the trap-error frame; BAKU-APPLY itself already loops, so the first
+\ application normally ends the loop.
+: baku-tail-run ( value -- value )
+	begin dup baku-tail-pending? while
+		drop baku-tail-fn @ baku-tail-args @ baku-apply
+	repeat ;
 
 \ ---------------------------------------------------------------------------
 \ Special forms
@@ -340,9 +386,15 @@ variable baku-apply-args
 	baku-nil swap 0 baku-make-closure
 	r> dup >r baku-fn-define r> ;
 
+\ The protected form runs inside CATCH.  A tail call it produces is resolved by
+\ BAKU-TAIL-RUN before leaving the protected word, so the trap-error handler
+\ frame is still on the return stack if that call throws.
+: baku-eval-protected ( node env -- value )
+	baku-eval-ir baku-tail-run ;
+
 : baku-eval-trap ( node env -- value )
 	over baku-ir-trap-expr over
-	['] baku-eval-ir catch dup if
+	['] baku-eval-protected catch dup if
 		>r 2drop r> >r
 		over baku-ir-trap-handler over baku-eval-ir
 		r> baku-exception-value
@@ -353,11 +405,21 @@ variable baku-apply-args
 		drop nip nip
 	then ;
 
+\ A tail call stores its closure and argument list and returns the marker.  The
+\ operator and arguments are ordinary subexpressions, so they are evaluated
+\ first; only the application is deferred to the trampoline.
 : baku-eval-call ( node env -- value )
+	over baku-ir-tail? >r
 	over baku-ir-call-operator over baku-eval-operator
 	>r
 	0 swap baku-eval-args-from
-	r> swap baku-apply ;
+	r> swap
+	r> if
+		baku-tail-args ! baku-tail-fn !
+		baku-tail-pending
+	else
+		baku-apply
+	then ;
 
 : baku-eval-ir-real ( node env -- value )
 	over baku-ir-kind
@@ -383,8 +445,10 @@ variable baku-apply-args
 
 \ BAKU-EVAL is the internal IR entry used by tests and future compiler modes.
 \ BAKU-EVAL-KL is the single Shen-visible entry point: it lowers the form through
-\ the shared front end and then evaluates the IR.
-: baku-eval ( ir -- value ) baku-nil baku-eval-ir ;
+\ the shared front end and then evaluates the IR.  The top-level form is compiled
+\ with the tail flag set, so a top-level tail call also goes through the
+\ trampoline instead of the Forth return stack.
+: baku-eval ( ir -- value ) baku-nil baku-eval-ir baku-tail-run ;
 : baku-eval-kl ( form -- value ) true baku-frontend baku-eval ;
 
 : baku-eval-init ( -- )
