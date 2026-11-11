@@ -38,6 +38,17 @@ if [ "$fail" -eq 0 ]; then
 	cmake --build build --config Debug --target sloth || fail=1
 fi
 
+# Host-side checks: vendored kernel digest and its deliberate-failure self-test.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_kernel_digest' \
+		--output-on-failure; then
+		echo "BAKU-KERNEL-DIGEST PASS"
+	else
+		echo "BAKU-KERNEL-DIGEST FAIL" >&2
+		fail=1
+	fi
+fi
+
 for target in $targets; do
 	if [ "$fail" -ne 0 ]; then
 		echo "BAKU-TARGET $target NOT RUN"

@@ -41,6 +41,18 @@ endforeach()
 set(BAKU_WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 set(BAKU_RUNNER ${CMAKE_CURRENT_SOURCE_DIR}/test/run-test.cmake)
 
+# Host-side checks: the vendored kernel bytes and a self-test that proves a
+# modified .kl file is rejected.  These do not depend on a Forth target.
+add_test(NAME baku_kernel_digest
+	COMMAND ${CMAKE_COMMAND}
+		-DTREE=${CMAKE_CURRENT_SOURCE_DIR}/vendor/shen-43.2/klambda
+		-DEXPECTED_FILE=${CMAKE_CURRENT_SOURCE_DIR}/vendor/shen-43.2/README.md
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify-kernel-digest.cmake)
+add_test(NAME baku_kernel_digest_tamper
+	COMMAND ${CMAKE_COMMAND}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/kernel-digest-selftest.cmake)
+
 file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
