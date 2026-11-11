@@ -60,6 +60,17 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side primitive manifest and its parser/classifier self-test.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_primitive_manifest' \
+		--output-on-failure; then
+		echo "BAKU-PRIMITIVE-MANIFEST PASS"
+	else
+		echo "BAKU-PRIMITIVE-MANIFEST FAIL" >&2
+		fail=1
+	fi
+fi
+
 for target in $targets; do
 	if [ "$fail" -ne 0 ]; then
 		echo "BAKU-TARGET $target NOT RUN"

@@ -59,6 +59,16 @@ add_test(NAME baku_ans_audit_selftest
 		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/ans-audit-selftest.cmake)
 
+# The primitive manifest is generated from the parsed kernel corpus and the
+# baku-defprim registrations.  The check fails on a stale manifest, an
+# unclassified applied symbol, or a registered primitive with no application.
+add_test(NAME baku_primitive_manifest
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/manifest.py --check)
+add_test(NAME baku_primitive_manifest_selftest
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/manifest.py --self-test)
+
 # Host-side checks: the vendored kernel bytes and a self-test that proves a
 # modified .kl file is rejected.  These do not depend on a Forth target.
 add_test(NAME baku_kernel_digest
