@@ -323,6 +323,149 @@ variable baku-eq-vn
 	baku-vector? if baku-true else baku-false then ;
 
 \ ---------------------------------------------------------------------------
+\ Numbers and symbols as text
+\ ---------------------------------------------------------------------------
+
+15 constant baku-float-digits-max
+create baku-float-digits baku-float-digits-max allot
+create baku-num-buffer 64 allot
+variable baku-num-len
+variable baku-fmt-exp
+variable baku-fmt-sign
+variable baku-fmt-count
+
+: baku-num-reset ( -- ) 0 baku-num-len ! ;
+
+: baku-num-c! ( c -- )
+	baku-num-buffer baku-num-len @ + c!
+	1 baku-num-len +! ;
+
+: baku-num-string ( c-addr u -- )
+	0 ?do dup c@ baku-num-c! char+ loop drop ;
+
+: baku-num-fixnum ( n -- )
+	dup >r s>d dabs <# #s r> sign #> baku-num-string ;
+
+: baku-num-digit ( i -- ) baku-float-digits + c@ baku-num-c! ;
+
+: baku-num-digits ( from to -- ) swap ?do i baku-num-digit loop ;
+
+\ REPRESENT supplies U significant digits and a decimal exponent N: the value is
+\ 0.digits * 10^N.  Keep the digits, the exponent and the sign, and trim trailing
+\ zeros so 1.5 does not print as 1.5000000000000000.
+: baku-float-capture ( F: r -- ; -- flag )
+	baku-float-digits baku-float-digits-max represent ( n sign valid )
+	dup 0= if 2drop false exit then drop
+	baku-fmt-sign ! baku-fmt-exp !
+	baku-float-digits-max baku-fmt-count !
+	begin
+		baku-fmt-count @ 1 >
+		if
+			baku-float-digits baku-fmt-count @ 1- + c@ [char] 0 <>
+			if
+				true
+			else
+				baku-fmt-count @ 1- baku-fmt-count !
+				false
+			then
+		else
+			true
+		then
+	until
+	true ;
+
+: baku-float-build ( -- )
+	baku-num-reset
+	baku-fmt-sign @ 0<> if [char] - baku-num-c! then
+	baku-fmt-count @ 1 = if
+		baku-float-digits c@ [char] 0 = if
+			s" 0.0" baku-num-string exit
+		then
+	then
+	baku-fmt-exp @ 17 > baku-fmt-exp @ -3 < or if
+		baku-float-digits c@ baku-num-c!
+		baku-fmt-count @ 1 > if
+			[char] . baku-num-c!
+			1 baku-fmt-count @ baku-num-digits
+		then
+		[char] e baku-num-c!
+		baku-fmt-exp @ 1- baku-num-fixnum
+	else
+		baku-fmt-exp @ 0> if
+			baku-fmt-exp @ baku-fmt-count @ < if
+				0 baku-fmt-exp @ baku-num-digits
+				[char] . baku-num-c!
+				baku-fmt-exp @ baku-fmt-count @ baku-num-digits
+			else
+				0 baku-fmt-count @ baku-num-digits
+				baku-fmt-exp @ baku-fmt-count @ -
+				0 ?do [char] 0 baku-num-c! loop
+				[char] . baku-num-c!
+				[char] 0 baku-num-c!
+			then
+		else
+			s" 0." baku-num-string
+			baku-fmt-exp @ negate 0 ?do [char] 0 baku-num-c! loop
+			0 baku-fmt-count @ baku-num-digits
+		then
+	then ;
+
+: baku-float->string ( obj -- str )
+	baku-float@ baku-float-capture if
+		baku-float-build
+	else
+		baku-num-reset s" nan" baku-num-string
+	then
+	baku-num-buffer baku-num-len @ baku-string ;
+
+: baku-fixnum->string ( x -- str )
+	baku-fixnum-value
+	dup >r s>d dabs <# #s r> sign #> baku-string ;
+
+\ ---------------------------------------------------------------------------
+\ String primitives
+\ ---------------------------------------------------------------------------
+
+create baku-byte-buffer 1 allot
+
+: baku-prim-cn ( a b -- obj )
+	over baku-string? 0= if baku-eval-type throw then
+	dup baku-string? 0= if baku-eval-type throw then
+	baku-string-cat ;
+
+: baku-prim-pos ( obj i -- obj' )
+	over baku-string? 0= if baku-eval-type throw then
+	dup baku-fixnum? 0= if baku-eval-type throw then
+	baku-fixnum-value 1 baku-string-slice ;
+
+: baku-prim-tlstr ( obj -- obj' )
+	dup baku-string? 0= if baku-eval-type throw then
+	dup baku-string-length dup 0= if drop drop baku-string-bounds-error throw then
+	1- 1 swap baku-string-slice ;
+
+: baku-prim-string->n ( obj -- n )
+	dup baku-string? 0= if baku-eval-type throw then
+	dup baku-string-length dup 0= if drop drop baku-string-bounds-error throw then
+	drop 0 baku-string@ baku-fixnum ;
+
+: baku-prim-n->string ( n -- obj )
+	dup baku-fixnum? 0= if baku-eval-type throw then
+	baku-fixnum-value
+	dup 0< over 255 > or if drop baku-invalid-argument throw then
+	baku-byte-buffer c! baku-byte-buffer 1 baku-string ;
+
+: baku-prim-str ( x -- obj )
+	dup baku-symbol? if
+		dup baku-symbol-name-addr swap baku-symbol-name-len baku-string exit
+	then
+	dup baku-string? if baku-string-quote exit then
+	dup baku-fixnum? if baku-fixnum->string exit then
+	dup baku-float? if baku-float->string exit then
+	dup baku-true = if drop s" true" baku-string exit then
+	dup baku-false = if drop s" false" baku-string exit then
+	baku-eval-type throw ;
+
+\ ---------------------------------------------------------------------------
 \ Registration
 \ ---------------------------------------------------------------------------
 
@@ -342,6 +485,12 @@ variable baku-eq-vn
 	['] baku-prim-cons 2 s" cons" baku-intern baku-defprim
 	['] baku-prim-cons? 1 s" cons?" baku-intern baku-defprim
 	['] baku-prim-hd 1 s" hd" baku-intern baku-defprim
-	['] baku-prim-tl 1 s" tl" baku-intern baku-defprim ;
+	['] baku-prim-tl 1 s" tl" baku-intern baku-defprim
+	['] baku-prim-str 1 s" str" baku-intern baku-defprim
+	['] baku-prim-pos 2 s" pos" baku-intern baku-defprim
+	['] baku-prim-tlstr 1 s" tlstr" baku-intern baku-defprim
+	['] baku-prim-cn 2 s" cn" baku-intern baku-defprim
+	['] baku-prim-string->n 1 s" string->n" baku-intern baku-defprim
+	['] baku-prim-n->string 1 s" n->string" baku-intern baku-defprim ;
 
 baku-primitives-init

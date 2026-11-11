@@ -31,6 +31,9 @@
 : prim-error ( a b xt -- code )
 	catch >r 2drop r> ;
 
+: test-str= ( obj c-addr u -- flag )
+	baku-string baku-prim-eq baku-true = ;
+
 : vec2 ( a b -- v )
 	2 baku-vector >r
 	r@ 1 baku-vector!
@@ -283,5 +286,81 @@ s" (cons? (cons 1 2))" run baku-true = 119 check
 s" (cons? ())" run baku-false = 120 check
 s" (string? 1)" run baku-false = 121 check
 s" (absvector? 1)" run baku-false = 122 check
+
+
+\ ---------------------------------------------------------------------------
+\ String primitives
+\ ---------------------------------------------------------------------------
+
+s" ab" baku-string s" cd" baku-string baku-prim-cn s" abcd" test-str= 123 check
+0 0 baku-string s" x" baku-string baku-prim-cn s" x" test-str= 124 check
+s" x" baku-string 0 0 baku-string baku-prim-cn s" x" test-str= 125 check
+1 baku-fixnum s" x" baku-string ' baku-prim-cn prim-error baku-eval-type = 126 check
+s" x" baku-string 1 baku-fixnum ' baku-prim-cn prim-error baku-eval-type = 127 check
+
+s" abc" baku-string 0 baku-fixnum baku-prim-pos s" a" test-str= 128 check
+s" abc" baku-string 2 baku-fixnum baku-prim-pos s" c" test-str= 129 check
+s" abc" baku-string 3 baku-fixnum ' baku-prim-pos prim-error baku-string-bounds-error = 130 check
+s" abc" baku-string -1 baku-fixnum ' baku-prim-pos prim-error baku-string-bounds-error = 131 check
+1 baku-fixnum 0 baku-fixnum ' baku-prim-pos prim-error baku-eval-type = 132 check
+s" abc" baku-string baku-true ' baku-prim-pos prim-error baku-eval-type = 133 check
+
+s" abc" baku-string baku-prim-tlstr s" bc" test-str= 134 check
+s" a" baku-string baku-prim-tlstr 0 0 baku-string baku-prim-eq baku-true = 135 check
+0 0 baku-string ' baku-prim-tlstr prim-error-1 baku-string-bounds-error = 136 check
+1 baku-fixnum ' baku-prim-tlstr prim-error-1 baku-eval-type = 137 check
+
+s" A" baku-string baku-prim-string->n baku-fixnum-value 65 = 138 check
+s" abc" baku-string baku-prim-string->n baku-fixnum-value 97 = 139 check
+0 0 baku-string ' baku-prim-string->n prim-error-1 baku-string-bounds-error = 140 check
+1 baku-fixnum ' baku-prim-string->n prim-error-1 baku-eval-type = 141 check
+
+65 baku-fixnum baku-prim-n->string s" A" test-str= 142 check
+10 baku-fixnum baku-prim-n->string
+dup baku-string-length 1 = 143 check
+0 baku-string@ 10 = 144 check
+0 baku-fixnum baku-prim-n->string
+dup baku-string-length 1 = 145 check
+0 baku-string@ 0 = 146 check
+256 baku-fixnum ' baku-prim-n->string prim-error-1 baku-invalid-argument = 147 check
+-1 baku-fixnum ' baku-prim-n->string prim-error-1 baku-invalid-argument = 148 check
+baku-true ' baku-prim-n->string prim-error-1 baku-eval-type = 149 check
+
+42 baku-fixnum baku-prim-str s" 42" test-str= 150 check
+-7 baku-fixnum baku-prim-str s" -7" test-str= 151 check
+0 baku-fixnum baku-prim-str s" 0" test-str= 152 check
+1.5e baku-float baku-prim-str s" 1.5" test-str= 153 check
+1e baku-float baku-prim-str s" 1.0" test-str= 154 check
+3.1415926535897e baku-float baku-prim-str s" 3.1415926535897" test-str= 155 check
+s" foo" baku-intern baku-prim-str s" foo" test-str= 156 check
+baku-true baku-prim-str s" true" test-str= 157 check
+baku-false baku-prim-str s" false" test-str= 158 check
+
+s" hi" baku-string baku-prim-str
+dup baku-string-length 4 = 159 check
+dup 0 baku-string@ 34 = 160 check
+dup 1 baku-string@ 104 = 161 check
+3 baku-string@ 34 = 162 check
+
+baku-nil ' baku-prim-str prim-error-1 baku-eval-type = 163 check
+1 baku-fixnum 2 baku-fixnum baku-cons ' baku-prim-str prim-error-1 baku-eval-type = 164 check
+3 baku-vector ' baku-prim-str prim-error-1 baku-eval-type = 165 check
+
+\ Through the evaluator: registration, arity and Shen-visible results.
+s" (cn (str foo) (str bar))" run s" foobar" test-str= 166 check
+s" (pos (str foo) 1)" run s" o" test-str= 167 check
+s" (tlstr (str foo))" run s" oo" test-str= 168 check
+s" (string->n (pos (str A) 0))" run baku-fixnum-value 65 = 169 check
+s" (n->string 65)" run s" A" test-str= 170 check
+s" (str 42)" run s" 42" test-str= 171 check
+s" (str foo)" run s" foo" test-str= 172 check
+s" (str true)" run s" true" test-str= 173 check
+s" (str false)" run s" false" test-str= 174 check
+s" (str 1.5)" run s" 1.5" test-str= 175 check
+s" (trap-error (pos (str foo) 9) (lambda E 99))" run baku-fixnum-value 99 = 176 check
+s" (trap-error (cn 1 2) (lambda E 99))" run baku-fixnum-value 99 = 177 check
+s" (trap-error (string->n 1) (lambda E 99))" run baku-fixnum-value 99 = 178 check
+s" (trap-error (str (cons 1 2)) (lambda E 99))" run baku-fixnum-value 99 = 179 check
+s" (+ 1 2)" run baku-fixnum-value 3 = 180 check
 
 ." BAKU-TEST-DONE" cr

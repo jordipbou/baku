@@ -287,6 +287,50 @@ variable baku-string-len
 		drop baku-string-bounds
 	then ;
 
+variable baku-slice-src
+variable baku-slice-start
+variable baku-slice-len
+
+\ Copy [START, START+LEN) of a validated string into a fresh string.  The
+\ bounds check runs before allocation so a failure leaves the heap unchanged.
+: baku-string-slice ( obj start len -- obj )
+	baku-slice-len ! baku-slice-start ! baku-slice-src !
+	baku-slice-start @ 0 < if baku-string-bounds-error throw then
+	baku-slice-len @ 0 < if baku-string-bounds-error throw then
+	baku-slice-start @ baku-slice-len @ +
+	baku-slice-src @ baku-string-length > if baku-string-bounds-error throw then
+	baku-slice-src @ baku-string-addr baku-slice-start @ +
+	baku-slice-len @ baku-string ;
+
+variable baku-cat-a
+variable baku-cat-b
+variable baku-cat-la
+variable baku-cat-lb
+
+: baku-string-cat ( a b -- obj )
+	baku-cat-b ! baku-cat-a !
+	baku-cat-a @ baku-string-length baku-cat-la !
+	baku-cat-b @ baku-string-length baku-cat-lb !
+	baku-cat-la @ baku-cat-lb @ + baku-type-string baku-alloc >r
+	baku-cat-a @ baku-string-addr r@ cell + baku-cat-la @ cmove
+	baku-cat-b @ baku-string-addr
+	r@ cell + baku-cat-la @ +
+	baku-cat-lb @ cmove
+	r> ;
+
+variable baku-quote-src
+
+\ Shen's STR encloses a string atom in double quotes; the payload stores the
+\ quotes so the result is an ordinary string like any other.
+: baku-string-quote ( obj -- obj )
+	baku-quote-src !
+	baku-quote-src @ baku-string-length 2 + baku-type-string baku-alloc >r
+	[char] " r@ cell + c!
+	baku-quote-src @ baku-string-addr r@ cell + 1+
+	baku-quote-src @ baku-string-length cmove
+	[char] " r@ cell + 1+ baku-quote-src @ baku-string-length + c!
+	r> ;
+
 \ ---------------------------------------------------------------------------
 \ Vectors: a cell-counted payload.  Elements start zeroed so an uninitialised
 \ absvector has a deterministic payload.
