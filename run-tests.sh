@@ -49,6 +49,17 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side ANS Forth 2012 audit and its deliberate-failure self-test.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_ans_audit' \
+		--output-on-failure; then
+		echo "BAKU-ANS-AUDIT PASS"
+	else
+		echo "BAKU-ANS-AUDIT FAIL" >&2
+		fail=1
+	fi
+fi
+
 for target in $targets; do
 	if [ "$fail" -ne 0 ]; then
 		echo "BAKU-TARGET $target NOT RUN"

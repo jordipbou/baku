@@ -10,12 +10,14 @@
 
 [DEFINED] gforth
 [IF]
+	S" portability.4th" INCLUDED
 	S" value.4th" INCLUDED
 	S" reader.4th" INCLUDED
 	S" frontend.4th" INCLUDED
 	S" eval.4th" INCLUDED
 	S" primitives.4th" INCLUDED
 [ELSE]
+	S" 4th/portability.4th" INCLUDED
 	S" 4th/value.4th" INCLUDED
 	S" 4th/reader.4th" INCLUDED
 	S" 4th/frontend.4th" INCLUDED

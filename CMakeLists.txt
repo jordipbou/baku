@@ -41,6 +41,24 @@ endforeach()
 set(BAKU_WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 set(BAKU_RUNNER ${CMAKE_CURRENT_SOURCE_DIR}/test/run-test.cmake)
 
+# The ANS Forth 2012 static audit is a host-side development check.  It scans
+# only shipped Forth; tools/ and the build are not part of the runtime.
+find_program(PYTHON3_EXECUTABLE python3)
+if(NOT PYTHON3_EXECUTABLE)
+	message(FATAL_ERROR
+		"python3 missing: python3 is required for the ANS Forth static audit.")
+endif()
+add_test(NAME baku_ans_audit
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/ans-audit.py
+		--root ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME baku_ans_audit_selftest
+	COMMAND ${CMAKE_COMMAND}
+		-DPYTHON3_EXECUTABLE=${PYTHON3_EXECUTABLE}
+		-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/ans-audit-selftest.cmake)
+
 # Host-side checks: the vendored kernel bytes and a self-test that proves a
 # modified .kl file is rejected.  These do not depend on a Forth target.
 add_test(NAME baku_kernel_digest
