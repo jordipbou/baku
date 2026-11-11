@@ -54,13 +54,8 @@
 -267 constant baku-invalid-argument
 -268 constant baku-error-expected
 
-\ Floating point is required for the kernel's float literals.  Probe it here so
-\ a target without the wordset fails loudly at load time instead of producing a
-\ wrong value later.
-[DEFINED] DF@ [DEFINED] DF! and 0= [IF]
-	." Baku requires the Floating wordset (DF@ DF!)" cr
-	abort
-[THEN]
+\ The required-wordset startup probe (4th/probe.4th) checks the Floating
+\ wordset before this file loads, so DF@/DF! are available here.
 
 \ ---------------------------------------------------------------------------
 \ Region map

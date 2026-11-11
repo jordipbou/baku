@@ -93,5 +93,17 @@ foreach(test_file IN LISTS BAKU_TESTS)
 				-DTARGET=${target}
 				-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
 				-P ${BAKU_RUNNER})
+
+		# The startup probe report is checked line by line as well: every
+		# required wordset must print PRESENT, never only the test marker.
+		if(test_name STREQUAL "probe")
+			add_test(NAME baku_probe_report_${target}
+				COMMAND ${CMAKE_COMMAND}
+					-DFORTH=${forth_command}
+					-DTEST_FILE=${test_file}
+					-DTARGET=${target}
+					-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/test/probe-report.cmake)
+		endif()
 	endforeach()
 endforeach()
