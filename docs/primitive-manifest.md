@@ -49,7 +49,7 @@ generation.
 | `cons` | primitive | Baku heap cons cell; Core `@ !` | allocates one cons |
 | `cons?` | primitive | Baku heap header test | returns a Shen Boolean |
 | `error-to-string` | primitive | Baku heap error object; Core `CMOVE` | copies the inline message; a non-error is rendered by the `str` rules |
-| `eval-kl` | executor entry point | Baku evaluator/compiler (no ANS word) | single Shen-visible entry into the evaluator; lowers a form through the shared front end |
+| `eval-kl` | primitive | Baku evaluator/compiler (no ANS word) | single Shen-visible entry into the evaluator; lowers a form through the shared front end |
 | `get-time` | primitive | Facility `TIME&DATE`; Core `MAX` | `unix` is local-time epoch seconds; `run` is non-decreasing elapsed seconds from one `TIME&DATE` source |
 | `hd` | primitive | Baku heap; Core `@` | non-cons raises a catchable type error |
 | `input+` | compatibility function | Baku heap (interpreted delegate) | two-place KLambda delegate to `shen.input-h+`; resolved at application time, not a Forth primitive |

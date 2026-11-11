@@ -115,6 +115,19 @@ variable baku-sym-trap-error
 : baku-ir-tail? ( node -- flag ) 1 baku-vector@ baku-true = ;
 : baku-ir-length ( node -- n ) baku-vector-length ;
 
+\ A consumer of IR trusts the front end, but a corrupted or foreign value must
+\ fail as a catchable error instead of being used as a vector header.
+: baku-ir-node? ( x -- flag )
+	dup baku-object? if
+		dup baku-vector? if
+			dup baku-vector-length 2 >= if
+				dup 0 baku-vector@ baku-fixnum? if
+					baku-ir-kind dup 0 >= swap 11 <= and
+				else drop false then
+			else drop false then
+		else drop false then
+	else drop false then ;
+
 : baku-ir-value ( node -- value ) 2 baku-vector@ ;
 : baku-ir-call-operator ( node -- ir ) 2 baku-vector@ ;
 : baku-ir-call-arity ( node -- n ) baku-vector-length 3 - ;
@@ -192,7 +205,19 @@ defer baku-frontend
 : baku-front-nth! ( form i tail node slot -- )
 	>r >r baku-front-nth r> r> baku-vector! ;
 
+\ A string literal read from the reader scratch arena must be copied into the
+\ selected heap before its form is released; the IR outlives the form.  Only an
+\ arena-resident string needs the copy, so a string built directly in the
+\ permanent heap keeps its identity.
+: baku-front-persist-string ( value -- value )
+	dup baku-string? if
+		dup baku-region-of baku-region-arena = if
+			dup baku-string-addr over baku-string-length baku-string nip
+		then
+	then ;
+
 : baku-front-atom ( value -- node )
+	baku-front-persist-string
 	dup baku-symbol? if
 		3 baku-ir-symbol false baku-ir-make
 	else

@@ -541,6 +541,7 @@ variable baku-partial-arity
 	then ;
 
 : baku-eval-ir-real ( node env -- value )
+	over baku-ir-node? 0= if 2drop baku-eval-malformed throw then
 	over baku-ir-kind
 	dup baku-ir-atom = if drop drop baku-ir-value exit then
 	dup baku-ir-symbol = if drop baku-eval-symbol exit then
@@ -575,6 +576,7 @@ variable baku-partial-arity
 	baku-global-reset
 	baku-nil baku-raised-value !
 	['] baku-prim-set 2 s" set" baku-intern baku-defprim
-	['] baku-prim-value 1 s" value" baku-intern baku-defprim ;
+	['] baku-prim-value 1 s" value" baku-intern baku-defprim
+	['] baku-eval-kl 1 s" eval-kl" baku-intern baku-defprim ;
 
 baku-eval-init

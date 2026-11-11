@@ -15,9 +15,11 @@ endif()
 
 include(FetchContent)
 # The pinned corpus contains one form with about 45k cons cells, and Sloth's
-# default stack and dictionary are too small for the reader tests.  These are
-# test-platform limits; the Baku sources themselves do not require them.
-set(SLOTH_DICTIONARY_SIZE 8388608 CACHE STRING
+# default stack and dictionary are too small for the reader tests.  The boot
+# test also raises the non-GC heap request to 16 MiB before loading the tree, so
+# the dictionary must hold that block plus the 2 MiB reader scratch block.
+# These are test-platform limits; the default Baku sources reserve only 512 KiB.
+set(SLOTH_DICTIONARY_SIZE 33554432 CACHE STRING
 	"Sloth dictionary size for the Baku test platform" FORCE)
 add_compile_definitions(SLOTH_STACK_SIZE=16384 SLOTH_RETURN_STACK_SIZE=16384)
 FetchContent_Declare(
@@ -88,8 +90,12 @@ foreach(test_file IN LISTS BAKU_TESTS)
 	foreach(target IN LISTS BAKU_REQUIRED_TARGETS)
 		if(target STREQUAL "sloth")
 			set(forth_command $<TARGET_FILE:sloth>)
+			set(forth_flags "")
 		elseif(target STREQUAL "gforth")
 			set(forth_command ${GFORTH_EXECUTABLE})
+			# The boot test reserves a 16 MiB non-GC heap plus the 2 MiB reader
+			# scratch block; gforth's default dictionary is smaller.
+			set(forth_flags "-m 64M")
 		else()
 			message(FATAL_ERROR "Unknown Baku test target '${target}'")
 		endif()
@@ -99,6 +105,7 @@ foreach(test_file IN LISTS BAKU_TESTS)
 		add_test(NAME baku_${test_name}_${target}
 			COMMAND ${CMAKE_COMMAND}
 				-DFORTH=${forth_command}
+				-DFORTH_FLAGS=${forth_flags}
 				-DTEST_FILE=${test_file}
 				-DTARGET=${target}
 				-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
@@ -110,6 +117,7 @@ foreach(test_file IN LISTS BAKU_TESTS)
 			add_test(NAME baku_probe_report_${target}
 				COMMAND ${CMAKE_COMMAND}
 					-DFORTH=${forth_command}
+					-DFORTH_FLAGS=${forth_flags}
 					-DTEST_FILE=${test_file}
 					-DTARGET=${target}
 					-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}

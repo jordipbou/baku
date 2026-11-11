@@ -50,7 +50,6 @@ SPECIAL_FORMS = frozenset({
 LOCAL_HEAD = re.compile(r"^[VW][0-9]+$")
 
 COMPATIBILITY = frozenset({"input+"})
-EXECUTOR = frozenset({"eval-kl"})
 KERNEL_SPECIAL = frozenset({"type"})
 
 # One row per applied host symbol: the ANS Forth 2012 words it uses and the
@@ -262,8 +261,6 @@ def classify(name, primitives):
         matches.append("primitive")
     if name in COMPATIBILITY:
         matches.append("compatibility function")
-    if name in EXECUTOR:
-        matches.append("executor entry point")
     if name in KERNEL_SPECIAL:
         matches.append("kernel special form")
     if len(matches) != 1:
@@ -330,7 +327,7 @@ def analyse():
                    if LOCAL_HEAD.match(name)}
     host_applied = applied_undefined - local_heads
 
-    classified = primitives | COMPATIBILITY | EXECUTOR | KERNEL_SPECIAL
+    classified = primitives | COMPATIBILITY | KERNEL_SPECIAL
     if host_applied - classified:
         raise ManifestError(
             "unclassified applied symbols: %s"
@@ -473,7 +470,7 @@ def self_test():
         raise ManifestError("self-test: + is not classified as a primitive")
     if classify("input+", set()) != "compatibility function":
         raise ManifestError("self-test: input+ category is wrong")
-    if classify("eval-kl", set()) != "executor entry point":
+    if classify("eval-kl", {"eval-kl"}) != "primitive":
         raise ManifestError("self-test: eval-kl category is wrong")
     if classify("type", set()) != "kernel special form":
         raise ManifestError("self-test: type category is wrong")

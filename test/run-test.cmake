@@ -5,8 +5,8 @@
 # both conditions (it ignores the exit status), so this script is the single
 # pass/fail decision. Invoked by CMakeLists.txt as:
 #
-#   cmake -DFORTH=<forth> -DTEST_FILE=<file> -DTARGET=<name>
-#         -DWORKING_DIRECTORY=<dir> -P run-test.cmake
+#   cmake -DFORTH=<forth> [-DFORTH_FLAGS=<flags>] -DTEST_FILE=<file>
+#         -DTARGET=<name> -DWORKING_DIRECTORY=<dir> -P run-test.cmake
 
 foreach(required FORTH TEST_FILE TARGET WORKING_DIRECTORY)
 	if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -14,8 +14,14 @@ foreach(required FORTH TEST_FILE TARGET WORKING_DIRECTORY)
 	endif()
 endforeach()
 
+if(DEFINED FORTH_FLAGS AND NOT "${FORTH_FLAGS}" STREQUAL "")
+	separate_arguments(forth_args UNIX_COMMAND "${FORTH_FLAGS}")
+else()
+	set(forth_args "")
+endif()
+
 execute_process(
-	COMMAND "${FORTH}" "${TEST_FILE}"
+	COMMAND "${FORTH}" ${forth_args} "${TEST_FILE}"
 	WORKING_DIRECTORY "${WORKING_DIRECTORY}"
 	RESULT_VARIABLE result
 	OUTPUT_VARIABLE output

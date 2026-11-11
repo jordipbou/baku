@@ -168,11 +168,14 @@ variable baku-assert-code
 \ a second implementation.  Interning a symbol explicitly binds the non-GC heap
 \ because symbols outlive the form that introduced them.
 \
-\ 512 KiB holds the full distinct-symbol set of the pinned kernel (measured at
-\ about 232 KiB) with headroom for constants.  The reader scratch block lives in
-\ the reader layer; the heap selector below is what makes it usable.
+\ The non-GC heap holds the permanent symbol table and, in interpreter bootstrap,
+\ the IR of every kernel definition (see 4th/boot.4th).  The default request in
+\ 4th/portability.4th is 512 KiB for the symbol table and constants; the boot
+\ test raises it to 16 MiB, which fits the pinned corpus's 1124 forms and their
+\ IR.  The reader scratch block lives in the reader layer; the heap selector
+\ below is what makes it usable.
 
-524288 constant baku-nongc-size
+baku-nongc-request @ constant baku-nongc-size
 
 align create baku-nongc-block baku-nongc-size allot align
 

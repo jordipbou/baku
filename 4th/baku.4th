@@ -18,6 +18,7 @@
 	S" eval.4th" INCLUDED
 	S" primitives.4th" INCLUDED
 	S" compat.4th" INCLUDED
+	S" boot.4th" INCLUDED
 [ELSE]
 	S" 4th/portability.4th" INCLUDED
 	S" 4th/probe.4th" INCLUDED
@@ -27,4 +28,5 @@
 	S" 4th/eval.4th" INCLUDED
 	S" 4th/primitives.4th" INCLUDED
 	S" 4th/compat.4th" INCLUDED
+	S" 4th/boot.4th" INCLUDED
 [THEN]
