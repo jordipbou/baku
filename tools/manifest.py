@@ -53,6 +53,114 @@ COMPATIBILITY = frozenset({"input+"})
 EXECUTOR = frozenset({"eval-kl"})
 KERNEL_SPECIAL = frozenset({"type"})
 
+# One row per applied host symbol: the ANS Forth 2012 words it uses and the
+# reason for the mapping.  "Baku heap" means the primitive is implemented on
+# Baku's own value layer and no ANS word applies.  The table is the M5
+# deliverable; --check fails when it and the classified host symbols disagree,
+# and a mapping row may never name a defun-defined kernel function.
+MAPPING = {
+    "*": ("Core `*`; Double `M*`; Floating `F*`",
+          "fixnum product widened with `M*` then range-checked; a float "
+          "operand uses `F*`"),
+    "+": ("Core `+`; Double `D+`; Floating `F+`",
+          "fixnum sum widened to a double cell then range-checked; a float "
+          "operand uses `F+`"),
+    "-": ("Core `-`; Double `D-`; Floating `F-`",
+          "fixnum difference widened to a double cell then range-checked; a "
+          "float operand uses `F-`"),
+    "/": ("Core `/` `MOD`; Double `S>D`; Floating `S>F F/`",
+          "exact fixnum quotient when divisible, otherwise a boxed float; "
+          "division by any numeric zero is catchable"),
+    "<": ("Core `<`; Floating `F<`",
+          "numeric comparison across fixnums and boxed floats; returns a "
+          "Shen Boolean"),
+    "<-address": ("Baku heap; Core `@ CELLS +`",
+                  "0-based vector read with a bounds check"),
+    "<=": ("Core `<=`; Floating comparison",
+           "numeric comparison; returns a Shen Boolean"),
+    "=": ("Core `=`; Floating `F~`; String `COMPARE`; Baku heap",
+          "total Shen equality: numeric across fixnums/floats, string bytes, "
+          "symbol identity, element-wise vectors, recursive conses; opaque "
+          "objects compare false"),
+    ">": ("Core `>`; Floating `F>`",
+          "numeric comparison; returns a Shen Boolean"),
+    ">=": ("Core `>=`; Floating comparison",
+           "numeric comparison; returns a Shen Boolean"),
+    "absvector": ("Baku heap; Core `CELLS`",
+                  "allocates N zero-filled cells"),
+    "absvector?": ("Baku heap header test",
+                   "returns a Shen Boolean"),
+    "address->": ("Baku heap; Core `! CELLS +`",
+                  "KLambda order `(vector index value)`; returns the vector"),
+    "char-stream?": ("Baku heap stream object",
+                     "arity 1; files are byte streams, standard streams are "
+                     "character streams; returns a Shen Boolean"),
+    "close": ("File `CLOSE-FILE`",
+              "returns its stream; a standard stream is a no-op"),
+    "cn": ("Baku heap; Core Ext `CMOVE CMOVE>`",
+           "string concatenation"),
+    "cons": ("Baku heap cons cell; Core `@ !`",
+             "allocates one cons"),
+    "cons?": ("Baku heap header test",
+              "returns a Shen Boolean"),
+    "error-to-string": ("Baku heap error object; Core `CMOVE`",
+                        "copies the inline message; a non-error is rendered by "
+                        "the `str` rules"),
+    "eval-kl": ("Baku evaluator/compiler (no ANS word)",
+                "single Shen-visible entry into the evaluator; lowers a form "
+                "through the shared front end"),
+    "get-time": ("Facility `TIME&DATE`; Core `MAX`",
+                 "`unix` is local-time epoch seconds; `run` is non-decreasing "
+                 "elapsed seconds from one `TIME&DATE` source"),
+    "hd": ("Baku heap; Core `@`",
+           "non-cons raises a catchable type error"),
+    "input+": ("Baku heap (interpreted delegate)",
+               "two-place KLambda delegate to `shen.input-h+`; resolved at "
+               "application time, not a Forth primitive"),
+    "intern": ("Baku symbol table; String `COMPARE`",
+               "case-sensitive; `_` and `-` stay distinct; `true`/`false` map "
+               "to the reserved immediates"),
+    "n->string": ("Baku heap; Core `C!`",
+                  "byte code 0..255 to a unit string"),
+    "number?": ("Baku heap tag and header test",
+                "fixnum or boxed float; returns a Shen Boolean"),
+    "open": ("File `R/O W/O BIN OPEN-FILE CREATE-FILE`",
+             "`in` opens read-only; `out` creates or truncates"),
+    "pos": ("Baku heap string slice",
+            "0-based index; returns a one-byte unit string"),
+    "read-byte": ("File `READ-FILE`; Core `KEY`",
+                  "returns -1 at end of file; standard input uses `KEY`"),
+    "read-unit-string": ("File `READ-FILE`; Core `KEY`",
+                         "reads one unit string"),
+    "set": ("Baku global table; Core `@ !`",
+            "updates an existing binding in place; returns the stored value"),
+    "simple-error": ("Exception `THROW`; Baku heap error object",
+                     "copies the message bytes inline, so no cross-region "
+                     "reference is stored"),
+    "str": ("Core `<# #S #> SIGN`; Floating `REPRESENT`; String `COMPARE`; "
+            "Baku heap",
+            "renders symbols, quoted strings, fixnums, boxed floats and "
+            "booleans; non-atoms are a catchable type error"),
+    "string->n": ("Baku heap; Core `C@`",
+                  "first byte of a non-empty string as a fixnum"),
+    "string?": ("Baku heap header test",
+                "returns a Shen Boolean"),
+    "tl": ("Baku heap; Core `@`",
+           "non-cons raises a catchable type error"),
+    "tlstr": ("Baku heap string slice",
+              "all but the first byte; the empty string is a catchable bounds "
+              "error"),
+    "type": ("Shen special form (no ANS word)",
+             "listed in `shen.*special*`; expanded before KLambda and never "
+             "host-implemented"),
+    "value": ("Baku global table; Core `@`",
+              "an unbound symbol raises a catchable error"),
+    "write-byte": ("File `WRITE-FILE`; Core `EMIT`",
+                   "returns its stream; standard output uses `EMIT`"),
+    "write-string": ("File `WRITE-FILE`; Core `TYPE`",
+                     "returns its string; standard output uses `TYPE`"),
+}
+
 
 class ManifestError(Exception):
     """The corpus and the declared classification do not agree."""
@@ -164,19 +272,35 @@ def classify(name, primitives):
     return matches[0]
 
 
-def implementation_note(name, category):
-    if category == "primitive":
-        return "registered through `baku-defprim`"
-    if category == "compatibility function":
-        return ("`4th/compat.4th` interpreted delegate to `shen.input-h+`; "
-                "resolved at application time")
-    if category == "executor entry point":
-        return ("`4th/eval.4th` `baku-eval-kl`; the single Shen-visible "
-                "entry point into the evaluator")
-    if category == "kernel special form":
-        return ("Shen `shen.*special*` form; expanded before KLambda, never "
-                "host-implemented")
-    raise ManifestError("no note for category %r" % category)
+def check_mappings(host_applied, defun_names, mapping):
+    """Require one mapping row per host symbol and nothing else.
+
+    The table is a deliverable, so it must be complete in both directions: an
+    applied host symbol without a row is undocumented, and a row for a symbol
+    the corpus never applies is stale.  A row for a defun-defined name would
+    invite a second implementation of a kernel function, so that is an error
+    too.
+    """
+    missing = host_applied - set(mapping)
+    if missing:
+        raise ManifestError(
+            "host symbols without a mapping row: %s"
+            % ", ".join(sorted(missing)))
+    extra = set(mapping) - host_applied
+    if extra:
+        raise ManifestError(
+            "mapping rows for symbols the corpus never applies: %s"
+            % ", ".join(sorted(extra)))
+    shadowed = set(mapping) & defun_names
+    if shadowed:
+        raise ManifestError(
+            "mapping rows name defun-defined kernel functions: %s"
+            % ", ".join(sorted(shadowed)))
+    for name, (ans, note) in sorted(mapping.items()):
+        if not ans.strip():
+            raise ManifestError("mapping row %r has no ANS Forth entry" % name)
+        if not note.strip():
+            raise ManifestError("mapping row %r has no reason" % name)
 
 
 def analyse():
@@ -219,6 +343,8 @@ def analyse():
     categories = {}
     for name in sorted(host_applied):
         categories[name] = classify(name, primitives)
+
+    check_mappings(host_applied, defun_names, MAPPING)
 
     return {
         "corpus": corpus,
@@ -269,14 +395,22 @@ def render(data):
     lines.append("symbol, or a registered primitive the corpus never applies,")
     lines.append("fails generation.")
     lines.append("")
-    lines.append("## Applied host symbols")
+    lines.append("## Primitive-to-ANS Forth mapping")
     lines.append("")
-    lines.append("| KLambda | Classification | Implementation |")
-    lines.append("|---|---|---|")
+    lines.append("One row per applied host symbol. `Baku heap` means the")
+    lines.append("primitive is implemented on Baku's value layer and no ANS")
+    lines.append("word applies. The mapping is generated from the same data that")
+    lines.append("validates it: a host symbol without a row, a row without an")
+    lines.append("application, or a row naming a `defun`-defined function fails")
+    lines.append("generation.")
+    lines.append("")
+    lines.append("| KLambda | Classification | ANS Forth 2012 | Implementation |")
+    lines.append("|---|---|---|---|")
     for name in sorted(data["host_applied"]):
         category = data["categories"][name]
-        lines.append("| `%s` | %s | %s |"
-                     % (name, category, implementation_note(name, category)))
+        ans, note = MAPPING[name]
+        lines.append("| `%s` | %s | %s | %s |"
+                     % (name, category, ans, note))
     lines.append("")
     lines.append("## Kernel-defined names (excluded)")
     lines.append("")
@@ -349,6 +483,35 @@ def self_test():
         pass
     else:
         raise ManifestError("self-test: an unclassified symbol was accepted")
+
+    complete = {"+": ("Core `+`", "sum")}
+    check_mappings({"+", "eval-kl"}, set(), {
+        "+": complete["+"],
+        "eval-kl": ("Baku evaluator", "entry point"),
+    })
+
+    def expect_mapping_error(host_applied, defun_names, mapping):
+        try:
+            check_mappings(host_applied, defun_names, mapping)
+        except ManifestError:
+            return
+        raise ManifestError("self-test: an invalid mapping was accepted")
+
+    expect_mapping_error({"+", "eval-kl"}, set(), complete)
+    expect_mapping_error({"+", "eval-kl"}, set(), {
+        "+": complete["+"],
+        "eval-kl": ("Baku evaluator", "entry point"),
+        "kernel-fn": ("Baku heap", "stale row"),
+    })
+    expect_mapping_error({"+", "eval-kl", "kernel-fn"}, {"kernel-fn"}, {
+        "+": complete["+"],
+        "eval-kl": ("Baku evaluator", "entry point"),
+        "kernel-fn": ("Baku heap", "shadowing row"),
+    })
+    expect_mapping_error({"+", "eval-kl"}, set(), {
+        "+": ("", "no ANS entry"),
+        "eval-kl": ("Baku evaluator", "entry point"),
+    })
 
     print("BAKU-MANIFEST-SELFTEST PASS")
     return 0

@@ -19,51 +19,58 @@ host symbol is classified below. An unclassified applied
 symbol, or a registered primitive the corpus never applies,
 fails generation.
 
-## Applied host symbols
+## Primitive-to-ANS Forth mapping
 
-| KLambda | Classification | Implementation |
-|---|---|---|
-| `*` | primitive | registered through `baku-defprim` |
-| `+` | primitive | registered through `baku-defprim` |
-| `-` | primitive | registered through `baku-defprim` |
-| `/` | primitive | registered through `baku-defprim` |
-| `<` | primitive | registered through `baku-defprim` |
-| `<-address` | primitive | registered through `baku-defprim` |
-| `<=` | primitive | registered through `baku-defprim` |
-| `=` | primitive | registered through `baku-defprim` |
-| `>` | primitive | registered through `baku-defprim` |
-| `>=` | primitive | registered through `baku-defprim` |
-| `absvector` | primitive | registered through `baku-defprim` |
-| `absvector?` | primitive | registered through `baku-defprim` |
-| `address->` | primitive | registered through `baku-defprim` |
-| `char-stream?` | primitive | registered through `baku-defprim` |
-| `close` | primitive | registered through `baku-defprim` |
-| `cn` | primitive | registered through `baku-defprim` |
-| `cons` | primitive | registered through `baku-defprim` |
-| `cons?` | primitive | registered through `baku-defprim` |
-| `error-to-string` | primitive | registered through `baku-defprim` |
-| `eval-kl` | executor entry point | `4th/eval.4th` `baku-eval-kl`; the single Shen-visible entry point into the evaluator |
-| `get-time` | primitive | registered through `baku-defprim` |
-| `hd` | primitive | registered through `baku-defprim` |
-| `input+` | compatibility function | `4th/compat.4th` interpreted delegate to `shen.input-h+`; resolved at application time |
-| `intern` | primitive | registered through `baku-defprim` |
-| `n->string` | primitive | registered through `baku-defprim` |
-| `number?` | primitive | registered through `baku-defprim` |
-| `open` | primitive | registered through `baku-defprim` |
-| `pos` | primitive | registered through `baku-defprim` |
-| `read-byte` | primitive | registered through `baku-defprim` |
-| `read-unit-string` | primitive | registered through `baku-defprim` |
-| `set` | primitive | registered through `baku-defprim` |
-| `simple-error` | primitive | registered through `baku-defprim` |
-| `str` | primitive | registered through `baku-defprim` |
-| `string->n` | primitive | registered through `baku-defprim` |
-| `string?` | primitive | registered through `baku-defprim` |
-| `tl` | primitive | registered through `baku-defprim` |
-| `tlstr` | primitive | registered through `baku-defprim` |
-| `type` | kernel special form | Shen `shen.*special*` form; expanded before KLambda, never host-implemented |
-| `value` | primitive | registered through `baku-defprim` |
-| `write-byte` | primitive | registered through `baku-defprim` |
-| `write-string` | primitive | registered through `baku-defprim` |
+One row per applied host symbol. `Baku heap` means the
+primitive is implemented on Baku's value layer and no ANS
+word applies. The mapping is generated from the same data that
+validates it: a host symbol without a row, a row without an
+application, or a row naming a `defun`-defined function fails
+generation.
+
+| KLambda | Classification | ANS Forth 2012 | Implementation |
+|---|---|---|---|
+| `*` | primitive | Core `*`; Double `M*`; Floating `F*` | fixnum product widened with `M*` then range-checked; a float operand uses `F*` |
+| `+` | primitive | Core `+`; Double `D+`; Floating `F+` | fixnum sum widened to a double cell then range-checked; a float operand uses `F+` |
+| `-` | primitive | Core `-`; Double `D-`; Floating `F-` | fixnum difference widened to a double cell then range-checked; a float operand uses `F-` |
+| `/` | primitive | Core `/` `MOD`; Double `S>D`; Floating `S>F F/` | exact fixnum quotient when divisible, otherwise a boxed float; division by any numeric zero is catchable |
+| `<` | primitive | Core `<`; Floating `F<` | numeric comparison across fixnums and boxed floats; returns a Shen Boolean |
+| `<-address` | primitive | Baku heap; Core `@ CELLS +` | 0-based vector read with a bounds check |
+| `<=` | primitive | Core `<=`; Floating comparison | numeric comparison; returns a Shen Boolean |
+| `=` | primitive | Core `=`; Floating `F~`; String `COMPARE`; Baku heap | total Shen equality: numeric across fixnums/floats, string bytes, symbol identity, element-wise vectors, recursive conses; opaque objects compare false |
+| `>` | primitive | Core `>`; Floating `F>` | numeric comparison; returns a Shen Boolean |
+| `>=` | primitive | Core `>=`; Floating comparison | numeric comparison; returns a Shen Boolean |
+| `absvector` | primitive | Baku heap; Core `CELLS` | allocates N zero-filled cells |
+| `absvector?` | primitive | Baku heap header test | returns a Shen Boolean |
+| `address->` | primitive | Baku heap; Core `! CELLS +` | KLambda order `(vector index value)`; returns the vector |
+| `char-stream?` | primitive | Baku heap stream object | arity 1; files are byte streams, standard streams are character streams; returns a Shen Boolean |
+| `close` | primitive | File `CLOSE-FILE` | returns its stream; a standard stream is a no-op |
+| `cn` | primitive | Baku heap; Core Ext `CMOVE CMOVE>` | string concatenation |
+| `cons` | primitive | Baku heap cons cell; Core `@ !` | allocates one cons |
+| `cons?` | primitive | Baku heap header test | returns a Shen Boolean |
+| `error-to-string` | primitive | Baku heap error object; Core `CMOVE` | copies the inline message; a non-error is rendered by the `str` rules |
+| `eval-kl` | executor entry point | Baku evaluator/compiler (no ANS word) | single Shen-visible entry into the evaluator; lowers a form through the shared front end |
+| `get-time` | primitive | Facility `TIME&DATE`; Core `MAX` | `unix` is local-time epoch seconds; `run` is non-decreasing elapsed seconds from one `TIME&DATE` source |
+| `hd` | primitive | Baku heap; Core `@` | non-cons raises a catchable type error |
+| `input+` | compatibility function | Baku heap (interpreted delegate) | two-place KLambda delegate to `shen.input-h+`; resolved at application time, not a Forth primitive |
+| `intern` | primitive | Baku symbol table; String `COMPARE` | case-sensitive; `_` and `-` stay distinct; `true`/`false` map to the reserved immediates |
+| `n->string` | primitive | Baku heap; Core `C!` | byte code 0..255 to a unit string |
+| `number?` | primitive | Baku heap tag and header test | fixnum or boxed float; returns a Shen Boolean |
+| `open` | primitive | File `R/O W/O BIN OPEN-FILE CREATE-FILE` | `in` opens read-only; `out` creates or truncates |
+| `pos` | primitive | Baku heap string slice | 0-based index; returns a one-byte unit string |
+| `read-byte` | primitive | File `READ-FILE`; Core `KEY` | returns -1 at end of file; standard input uses `KEY` |
+| `read-unit-string` | primitive | File `READ-FILE`; Core `KEY` | reads one unit string |
+| `set` | primitive | Baku global table; Core `@ !` | updates an existing binding in place; returns the stored value |
+| `simple-error` | primitive | Exception `THROW`; Baku heap error object | copies the message bytes inline, so no cross-region reference is stored |
+| `str` | primitive | Core `<# #S #> SIGN`; Floating `REPRESENT`; String `COMPARE`; Baku heap | renders symbols, quoted strings, fixnums, boxed floats and booleans; non-atoms are a catchable type error |
+| `string->n` | primitive | Baku heap; Core `C@` | first byte of a non-empty string as a fixnum |
+| `string?` | primitive | Baku heap header test | returns a Shen Boolean |
+| `tl` | primitive | Baku heap; Core `@` | non-cons raises a catchable type error |
+| `tlstr` | primitive | Baku heap string slice | all but the first byte; the empty string is a catchable bounds error |
+| `type` | kernel special form | Shen special form (no ANS word) | listed in `shen.*special*`; expanded before KLambda and never host-implemented |
+| `value` | primitive | Baku global table; Core `@` | an unbound symbol raises a catchable error |
+| `write-byte` | primitive | File `WRITE-FILE`; Core `EMIT` | returns its stream; standard output uses `EMIT` |
+| `write-string` | primitive | File `WRITE-FILE`; Core `TYPE` | returns its string; standard output uses `TYPE` |
 
 ## Kernel-defined names (excluded)
 
