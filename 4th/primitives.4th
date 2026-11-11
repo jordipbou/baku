@@ -12,6 +12,10 @@
 \            (Shen 43.2 /, not Forth's truncating integer division)
 \   > < >= <=  signed numeric comparison over fixnums and floats
 \   number?    true for a fixnum or a boxed float
+\   string?    true for a Baku string
+\   absvector? true for a Baku vector
+\   cons cons? hd tl  Baku cons cells; HD and TL raise a catchable type error
+\              on a non-cons
 \   =          Shen equality: numeric across fixnum/float, byte equality for
 \              strings, identity for interned symbols and immediates, element
 \              equality for vectors, recursive equality for conses; a closure,
@@ -290,11 +294,33 @@ variable baku-eq-vn
 	baku-eq? if baku-true else baku-false then ;
 
 \ ---------------------------------------------------------------------------
-\ Classifiers
+\ Cons and classifiers
+\
+\ The layer below already owns the representation (BAKU-CONS, BAKU-HD and the
+\ type predicates); these words only expose it to KLambda.  HD and TL raise the
+\ same BAKU-EVAL-TYPE as the arithmetic group, so TRAP-ERROR handles every
+\ primitive type failure through one path.
 \ ---------------------------------------------------------------------------
+
+: baku-prim-cons ( a b -- obj ) baku-cons ;
+
+: baku-prim-cons? ( x -- result )
+	baku-cons? if baku-true else baku-false then ;
+
+: baku-prim-hd ( obj -- hd )
+	dup baku-cons? 0= if baku-eval-type throw then baku-hd ;
+
+: baku-prim-tl ( obj -- tl )
+	dup baku-cons? 0= if baku-eval-type throw then baku-tl ;
 
 : baku-prim-number? ( x -- result )
 	baku-number? if baku-true else baku-false then ;
+
+: baku-prim-string? ( x -- result )
+	baku-string? if baku-true else baku-false then ;
+
+: baku-prim-absvector? ( x -- result )
+	baku-vector? if baku-true else baku-false then ;
 
 \ ---------------------------------------------------------------------------
 \ Registration
@@ -310,6 +336,12 @@ variable baku-eq-vn
 	['] baku-prim-ge 2 s" >=" baku-intern baku-defprim
 	['] baku-prim-le 2 s" <=" baku-intern baku-defprim
 	['] baku-prim-eq 2 s" =" baku-intern baku-defprim
-	['] baku-prim-number? 1 s" number?" baku-intern baku-defprim ;
+	['] baku-prim-number? 1 s" number?" baku-intern baku-defprim
+	['] baku-prim-string? 1 s" string?" baku-intern baku-defprim
+	['] baku-prim-absvector? 1 s" absvector?" baku-intern baku-defprim
+	['] baku-prim-cons 2 s" cons" baku-intern baku-defprim
+	['] baku-prim-cons? 1 s" cons?" baku-intern baku-defprim
+	['] baku-prim-hd 1 s" hd" baku-intern baku-defprim
+	['] baku-prim-tl 1 s" tl" baku-intern baku-defprim ;
 
 baku-primitives-init

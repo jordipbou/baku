@@ -37,23 +37,12 @@
 	r> = r> check ;
 
 \ ---------------------------------------------------------------------------
-\ Test primitives.  They use the production registration path.
+\ Test primitives.  They use the production registration path.  Arithmetic,
+\ cons and the classifiers are already installed by 4th/primitives.4th, so only
+\ the shapes the production layer does not own are registered here.
 \ ---------------------------------------------------------------------------
 
-: p+ ( a b -- x )
-	baku-fixnum-value swap baku-fixnum-value + baku-fixnum ;
-
-: p* ( a b -- x )
-	baku-fixnum-value swap baku-fixnum-value * baku-fixnum ;
-
-: p- ( a b -- x )
-	>r baku-fixnum-value r> baku-fixnum-value - baku-fixnum ;
-
 : pid ( x -- x ) ;
-
-: pcons ( a b -- x ) baku-cons ;
-: phd ( x -- y ) baku-hd ;
-: ptl ( x -- y ) baku-tl ;
 
 : pthrow ( x -- ) baku-raise ;
 
@@ -62,13 +51,7 @@
 
 : pdo ( a b -- b ) nip ;
 
-' p+ 2 s" +" baku-intern baku-defprim
-' p* 2 s" *" baku-intern baku-defprim
-' p- 2 s" -" baku-intern baku-defprim
 ' pid 1 s" id" baku-intern baku-defprim
-' pcons 2 s" cons" baku-intern baku-defprim
-' phd 1 s" hd" baku-intern baku-defprim
-' ptl 1 s" tl" baku-intern baku-defprim
 ' pthrow 1 s" throw" baku-intern baku-defprim
 ' peq 2 s" eq" baku-intern baku-defprim
 ' pdo 2 s" do" baku-intern baku-defprim

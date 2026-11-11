@@ -205,4 +205,83 @@ s" (+ 2 3)" run baku-fixnum-value 5 = 77 check
 baku-fixnum-min baku-fixnum -1 baku-fixnum
 ' baku-prim-div prim-error baku-arithmetic-overflow = 78 check
 
+\ ---------------------------------------------------------------------------
+\ Cons and the host classifiers
+\ ---------------------------------------------------------------------------
+
+\ Catch a failure of a unary primitive and return its THROW code.
+: prim-error-1 ( a xt -- code )
+	catch >r drop r> ;
+
+: a-number ( -- x ) 5 baku-fixnum ;
+: a-string ( -- x ) s" xyz" baku-string ;
+: a-cons ( -- x ) 1 baku-fixnum 2 baku-fixnum baku-cons ;
+: a-vector ( -- x ) 3 baku-vector ;
+
+\ cons/decompose directly.
+a-cons
+dup baku-prim-cons? baku-true = 80 check
+dup baku-prim-hd baku-fixnum-value 1 = 81 check
+baku-prim-tl baku-fixnum-value 2 = 82 check
+
+\ cons/decompose through the evaluator.
+s" (cons 1 2)" run dup baku-prim-cons? baku-true = 83 check
+dup baku-prim-hd baku-fixnum-value 1 = 84 check
+baku-prim-tl baku-fixnum-value 2 = 85 check
+
+\ A proper list decomposes at both levels.
+s" (hd (cons 1 (cons 2 ())))" run baku-fixnum-value 1 = 86 check
+s" (tl (cons 1 (cons 2 ())))" run baku-hd baku-fixnum-value 2 = 87 check
+
+\ Improper lists keep the second argument as the tail, not the empty list.
+s" (tl (cons 1 2))" run baku-fixnum-value 2 = 88 check
+
+\ cons? rejects every non-cons; the empty list is not a cons.
+baku-nil baku-prim-cons? baku-false = 89 check
+a-number baku-prim-cons? baku-false = 90 check
+a-string baku-prim-cons? baku-false = 91 check
+a-vector baku-prim-cons? baku-false = 92 check
+
+\ hd/tl on a non-cons are catchable type errors and leave the interpreter usable.
+a-number ' baku-prim-hd prim-error-1 baku-eval-type = 93 check
+a-string ' baku-prim-tl prim-error-1 baku-eval-type = 94 check
+s" (hd 1)" baku-eval-type 95 check-error
+s" (tl ())" baku-eval-type 96 check-error
+s" (+ 1 2)" run baku-fixnum-value 3 = 97 check
+
+\ Each host classifier accepts its own kind and rejects one value of every other
+\ kind, so a classifier cannot silently accept an object with a different type.
+a-number baku-prim-number? baku-true = 98 check
+a-string baku-prim-number? baku-false = 99 check
+a-cons baku-prim-number? baku-false = 100 check
+a-vector baku-prim-number? baku-false = 101 check
+
+a-number baku-prim-string? baku-false = 102 check
+a-string baku-prim-string? baku-true = 103 check
+a-cons baku-prim-string? baku-false = 104 check
+a-vector baku-prim-string? baku-false = 105 check
+
+a-number baku-prim-cons? baku-false = 106 check
+a-string baku-prim-cons? baku-false = 107 check
+a-cons baku-prim-cons? baku-true = 108 check
+a-vector baku-prim-cons? baku-false = 109 check
+
+a-number baku-prim-absvector? baku-false = 110 check
+a-string baku-prim-absvector? baku-false = 111 check
+a-cons baku-prim-absvector? baku-false = 112 check
+a-vector baku-prim-absvector? baku-true = 113 check
+
+\ Immediates are none of the four host object kinds.
+baku-nil baku-prim-number? baku-false = 114 check
+baku-nil baku-prim-string? baku-false = 115 check
+baku-nil baku-prim-absvector? baku-false = 116 check
+baku-true baku-prim-cons? baku-false = 117 check
+baku-false baku-prim-number? baku-false = 118 check
+
+\ The classifiers are registered, return Shen Booleans and use arity 1.
+s" (cons? (cons 1 2))" run baku-true = 119 check
+s" (cons? ())" run baku-false = 120 check
+s" (string? 1)" run baku-false = 121 check
+s" (absvector? 1)" run baku-false = 122 check
+
 ." BAKU-TEST-DONE" cr
