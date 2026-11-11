@@ -14,6 +14,9 @@
 \   number?    true for a fixnum or a boxed float
 \   string?    true for a Baku string
 \   absvector? true for a Baku vector
+\   absvector  allocate a zero-filled vector of N cells
+\   address->  write a cell at a zero-based index and return the vector
+\   <-address  read a cell at a zero-based index
 \   cons cons? hd tl  Baku cons cells; HD and TL raise a catchable type error
 \              on a non-cons
 \   =          Shen equality: numeric across fixnum/float, byte equality for
@@ -323,6 +326,42 @@ variable baku-eq-vn
 	baku-vector? if baku-true else baku-false then ;
 
 \ ---------------------------------------------------------------------------
+\ Vectors
+\
+\ ABSVECTOR allocates N cells (indexed 0 .. N-1); the value layer zero-fills
+\ them.  ADDRESS-> and <-ADDRESS take a zero-based index.  A non-vector or a
+\ non-fixnum index is the same catchable BAKU-EVAL-TYPE as every other
+\ primitive; an index outside the vector is the value layer's catchable
+\ BAKU-VECTOR-BOUNDS-ERROR, matching POS/TLSTR's use of the string bounds code.
+\ ---------------------------------------------------------------------------
+
+variable baku-vec-index
+
+: baku-prim-vector-index ( x -- i )
+	dup baku-fixnum? 0= if drop baku-eval-type throw then
+	baku-fixnum-value ;
+
+: baku-prim-absvector ( n -- obj )
+	baku-prim-vector-index baku-vector ;
+
+\ KLambda order is (vector index value); the value layer writer takes
+\ (value vector index), so reorder before the store.
+: baku-prim-address-> ( obj index value -- obj )
+	-rot                              ( value obj index )
+	baku-prim-vector-index            ( value obj i )
+	swap >r                           ( value i | R: obj )
+	r@ baku-vector? 0= if
+		drop drop r> drop baku-eval-type throw
+	then
+	r@ swap baku-vector!
+	r> ;
+
+: baku-prim-<-address ( obj index -- value )
+	baku-prim-vector-index baku-vec-index !
+	dup baku-vector? 0= if drop baku-eval-type throw then
+	baku-vec-index @ baku-vector@ ;
+
+\ ---------------------------------------------------------------------------
 \ Numbers and symbols as text
 \ ---------------------------------------------------------------------------
 
@@ -482,6 +521,9 @@ create baku-byte-buffer 1 allot
 	['] baku-prim-number? 1 s" number?" baku-intern baku-defprim
 	['] baku-prim-string? 1 s" string?" baku-intern baku-defprim
 	['] baku-prim-absvector? 1 s" absvector?" baku-intern baku-defprim
+	['] baku-prim-absvector 1 s" absvector" baku-intern baku-defprim
+	['] baku-prim-address-> 3 s" address->" baku-intern baku-defprim
+	['] baku-prim-<-address 2 s" <-address" baku-intern baku-defprim
 	['] baku-prim-cons 2 s" cons" baku-intern baku-defprim
 	['] baku-prim-cons? 1 s" cons?" baku-intern baku-defprim
 	['] baku-prim-hd 1 s" hd" baku-intern baku-defprim

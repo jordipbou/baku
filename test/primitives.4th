@@ -363,4 +363,69 @@ s" (trap-error (string->n 1) (lambda E 99))" run baku-fixnum-value 99 = 178 chec
 s" (trap-error (str (cons 1 2)) (lambda E 99))" run baku-fixnum-value 99 = 179 check
 s" (+ 1 2)" run baku-fixnum-value 3 = 180 check
 
+\ ---------------------------------------------------------------------------
+\ Vector primitives
+\ ---------------------------------------------------------------------------
+
+\ An absvector of N cells is zero-filled and indexes 0 .. N-1.
+3 baku-fixnum baku-prim-absvector
+dup baku-prim-absvector? baku-true = 181 check
+dup baku-vector-length 3 = 182 check
+dup 0 baku-vector@ 0 = 183 check
+2 baku-vector@ 0 = 184 check
+0 baku-fixnum baku-prim-absvector baku-vector-length 0 = 185 check
+
+\ address-> writes in place and returns the same object.
+: test-vector-address ( -- )
+	2 baku-fixnum baku-prim-absvector >r
+	r@ 0 baku-fixnum 42 baku-fixnum baku-prim-address-> r@ = 186 check
+	r@ 0 baku-fixnum baku-prim-<-address baku-fixnum-value 42 = 187 check
+	r@ 1 baku-fixnum baku-prim-<-address 0 = 188 check
+	r> drop ;
+
+test-vector-address
+
+\ Catch a failure of a ternary primitive and return its THROW code.
+: prim-error-3 ( a b c xt -- code )
+	catch >r 2drop drop r> ;
+
+\ An index outside the vector is a catchable bounds error; the vector is
+\ unchanged because the address check runs before the store.
+a-vector 3 baku-fixnum ' baku-prim-<-address prim-error
+	baku-vector-bounds-error = 189 check
+a-vector -1 baku-fixnum ' baku-prim-<-address prim-error
+	baku-vector-bounds-error = 190 check
+a-vector 3 baku-fixnum 9 baku-fixnum ' baku-prim-address-> prim-error-3
+	baku-vector-bounds-error = 191 check
+a-vector -1 baku-fixnum 9 baku-fixnum ' baku-prim-address-> prim-error-3
+	baku-vector-bounds-error = 192 check
+a-vector 0 baku-fixnum baku-vector@ 0 = 193 check
+
+\ A non-vector and a non-fixnum index are catchable type errors.
+a-number 0 baku-fixnum ' baku-prim-<-address prim-error
+	baku-eval-type = 194 check
+a-vector baku-true ' baku-prim-<-address prim-error
+	baku-eval-type = 195 check
+a-string 0 baku-fixnum 1 baku-fixnum ' baku-prim-address-> prim-error-3
+	baku-eval-type = 196 check
+a-number 0 baku-fixnum 1 baku-fixnum ' baku-prim-address-> prim-error-3
+	baku-eval-type = 197 check
+
+baku-true ' baku-prim-absvector prim-error-1 baku-eval-type = 198 check
+-1 baku-fixnum ' baku-prim-absvector prim-error-1
+	baku-invalid-argument = 199 check
+
+\ Through the evaluator: registration, arity and Shen-visible results.
+s" (absvector? (absvector 3))" run baku-true = 200 check
+s" (= (<-address (address-> (absvector 2) 0 5) 0) 5)" run baku-true = 201 check
+s" (let V (absvector 2) (= V (address-> V 0 7)))" run baku-true = 202 check
+s" (<-address (address-> (absvector 2) 1 6) 1)" run baku-fixnum-value 6 = 203 check
+s" (trap-error (<-address (absvector 2) 5) (lambda E 99))" run
+	baku-fixnum-value 99 = 204 check
+s" (trap-error (address-> 1 0 2) (lambda E 98))" run
+	baku-fixnum-value 98 = 205 check
+s" (trap-error (absvector true) (lambda E 97))" run
+	baku-fixnum-value 97 = 206 check
+s" (+ 1 2)" run baku-fixnum-value 3 = 207 check
+
 ." BAKU-TEST-DONE" cr
