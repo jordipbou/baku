@@ -6,9 +6,8 @@
 \ environment rules are tested here rather than in a test-only evaluator.
 \
 \ Tail calls are tested at the end with zero-allocation counters so the deep
-\ chains do not depend on the size of the non-GC heap.  Currying and the
-\ error-object payload are later M4/M5 work; this file proves the tree-walking
-\ reference on exact-arity calls.
+\ chains do not depend on the size of the non-GC heap.  Currying is tested there
+\ too; the error-object payload is later M5 work.
 
 [DEFINED] gforth
 [IF]
@@ -175,7 +174,7 @@ s" (do (id 1) (id 2))" run baku-fixnum-value 2 = 44 check
 \ ---------------------------------------------------------------------------
 
 s" (no-such-function 1)" baku-eval-undefined 45 check-error
-s" (add1)" baku-eval-arity 46 check-error
+s" (forty-two 1)" baku-eval-arity 46 check-error
 s" (add1 1 2)" baku-eval-arity 47 check-error
 s" (1 2)" baku-eval-not-callable 48 check-error
 s" (if X)" baku-front-arity 49 check-error
@@ -248,5 +247,37 @@ s" (trap-error (if true (throw 7) 0) (lambda E E))" run
 baku-fixnum-value 7 = 61 check
 s" (trap-error (trap-error (if true (throw 1) 0) (lambda E (throw (+ E 1)))) (lambda E E))" run
 baku-fixnum-value 2 = 62 check
+
+\ ---------------------------------------------------------------------------
+\ Currying: on-demand partial application
+\ ---------------------------------------------------------------------------
+
+\ A call with fewer arguments than the closure needs returns a partial closure.
+s" (add1)" run baku-closure? 63 check
+s" (let F (add1) (F 41))" run baku-fixnum-value 42 = 64 check
+
+\ A partial of a two-argument defun completes when the second argument arrives.
+s" (let F (two-args 10) (F 3))" run baku-fixnum-value 7 = 65 check
+
+\ Partial application works for host primitives too.
+s" (let F (+ 1) (F 2))" run baku-fixnum-value 3 = 66 check
+
+\ Partial application accumulates in source order over more than two steps.
+s" (defun three-args (X Y Z) (+ X (+ Y Z)))" run drop
+s" (let F (three-args 1) (let G (F 2) (G 3)))" run baku-fixnum-value 6 = 67 check
+
+\ Applying a partial to no new arguments keeps the pending arguments.
+s" (let F (two-args 10) (let G (F) (G 3)))" run baku-fixnum-value 7 = 68 check
+
+\ A tail call that supplies too few arguments returns the partial closure.
+s" (defun tail-partial () (add1))" run drop
+s" ((tail-partial) 41)" run baku-fixnum-value 42 = 69 check
+
+\ Over-application of a plain closure and of a partial closure is catchable.
+s" ((lambda X X) 1 2)" baku-eval-arity 70 check-error
+s" (let F (two-args 10) (F 1 2))" baku-eval-arity 71 check-error
+
+\ The interpreter remains usable after a partial-application error.
+s" (let F (add1) (F 41))" run baku-fixnum-value 42 = 72 check
 
 ." BAKU-TEST-DONE" cr

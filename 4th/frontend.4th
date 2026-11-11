@@ -165,6 +165,20 @@ variable baku-sym-trap-error
 	repeat
 	drop baku-hd ;
 
+\ Concatenate two proper lists, preserving source order.  The evaluator uses
+\ this to accumulate the arguments of a partial application, so it lives with
+\ the other shared list helpers.
+: baku-list-append ( a b -- a++b )
+	over baku-cons? if
+		over baku-hd >r
+		swap baku-tl swap
+		recurse
+		r> swap baku-cons
+	else
+		over baku-nil = 0= if baku-front-malformed throw then
+		nip
+	then ;
+
 \ ---------------------------------------------------------------------------
 \ Recursive builders.  BAKU-FRONTEND is deferred so the helpers below and the
 \ builders can call it before its definition is reached.

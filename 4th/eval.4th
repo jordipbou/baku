@@ -17,6 +17,8 @@
 \           ENVIRONMENT is the captured association list.
 \   kind 1  primitive: CODE is a Forth execution token, ARITY is its fixed
 \           argument count and ENVIRONMENT is BAKU-NIL.
+\   kind 2  partial: ARITY is the number of arguments still needed, CODE is the
+\           target closure and ENVIRONMENT is the saved argument list.
 \
 \ Global functions live in a dictionary-side bucket table; each entry is a cons
 \ of (name-symbol . closure).  BAKU-DEFPRIM installs a host primitive and
@@ -44,11 +46,12 @@
 \ reader parses the textual fixnum 26 as 53 ((2n)+1), so this cell can only be
 \ produced here.
 \
-\ Not here yet: on-demand currying.  A call must supply exactly the closure's
-\ arity; a program that needs partial application is rejected with
-\ BAKU-EVAL-ARITY until currying lands.  The trampoline already returns an
-\ ordinary value for any non-marker result, so a partial-application closure
-\ will flow through it unchanged when currying lands.
+\ Currying: a closure carries the arity it still needs.  Applying it to fewer
+\ arguments produces a partial closure that saves them; applying that closure to
+\ the remaining ones completes the call.  Applying a closure to more arguments
+\ than it needs is a catchable BAKU-EVAL-ARITY.  BAKU-APPLY resolves currying
+\ before dispatch, so interpreted closures, host primitives and the tail-call
+\ trampoline share the one application path.
 
 \ ---------------------------------------------------------------------------
 \ Errors
@@ -89,6 +92,7 @@ variable baku-tail-args
 
 0 constant baku-closure-interpreted
 1 constant baku-closure-primitive
+2 constant baku-closure-partial
 
 : baku-closure? ( x -- flag )
 	dup baku-object? if baku-object-type baku-type-closure = else drop false then ;
@@ -285,19 +289,67 @@ variable baku-body-code
 variable baku-apply-fn
 variable baku-apply-args
 
+variable baku-partial-target
+variable baku-partial-saved
+variable baku-partial-arity
+
+: baku-apply-argc ( -- n ) baku-apply-args @ baku-list-length ;
+: baku-apply-arity ( -- n ) baku-apply-fn @ baku-closure-arity ;
+
+\ Build a partial closure from the current closure and arguments.  When the
+\ current closure is already partial, its target and saved arguments are reused
+\ so repeated partial application stays flat instead of nesting closures.
+: baku-apply-make-partial ( -- closure )
+	baku-apply-fn @ baku-closure-kind baku-closure-partial = if
+		baku-apply-fn @ baku-closure-code baku-partial-target !
+		baku-apply-fn @ baku-closure-env baku-partial-saved !
+	else
+		baku-apply-fn @ baku-partial-target !
+		baku-nil baku-partial-saved !
+	then
+	baku-apply-arity baku-apply-argc - baku-partial-arity !
+	baku-partial-saved @ baku-apply-args @ baku-list-append baku-partial-saved !
+	baku-partial-target @ baku-partial-saved @
+	baku-partial-arity @ baku-closure-partial
+	baku-make-closure ;
+
+\ A partial closure whose remaining arguments have all arrived: prepend its
+\ saved arguments to the new ones and make the target current, so the same
+\ trampoline iteration applies it.
+: baku-apply-resolve-partial ( -- )
+	baku-apply-fn @ baku-closure-code baku-partial-target !
+	baku-apply-fn @ baku-closure-env
+	baku-apply-args @ baku-list-append baku-partial-saved !
+	baku-partial-target @ baku-apply-fn !
+	baku-partial-saved @ baku-apply-args ! ;
+
+\ Prepare the current application.  Return the value and true when currying
+\ produced it, or false after making the closure and arguments exactly
+\ arity-matched.  Too few arguments build or extend a partial; too many are a
+\ catchable error.
+: baku-apply-curry ( -- value true | -- false )
+	baku-apply-argc baku-apply-arity
+	2dup < if
+		drop drop baku-apply-make-partial true exit
+	then
+	over over > if baku-eval-arity throw then
+	2drop
+	baku-apply-fn @ baku-closure-kind baku-closure-partial = if
+		baku-apply-resolve-partial
+	then
+	false ;
+
 \ The trampoline.  Each iteration applies one closure; an interpreted body that
 \ ends in a tail call leaves a request instead of recursing, so the loop adopts
 \ the new closure and arguments without touching the return stack.  A primitive
-\ or a body that produced an ordinary value ends the loop.  This is also where
-\ a future partial-application closure returns unchanged, because it is just a
-\ value here.
+\ or a body that produced an ordinary value ends the loop.  Currying is resolved
+\ first, so an under-applied tail call returns its partial closure as a value
+\ and an over-applied one throws.
 : baku-apply ( closure args -- value )
 	begin
 		baku-apply-args ! baku-apply-fn !
 		baku-apply-fn @ baku-closure? 0= if baku-eval-not-callable throw then
-		baku-apply-args @ baku-list-length
-		baku-apply-fn @ baku-closure-arity <>
-		if baku-eval-arity throw then
+		baku-apply-curry if exit then
 		baku-apply-fn @ baku-closure-kind baku-closure-interpreted = if
 			baku-apply-fn @ baku-closure-env
 			baku-apply-args @
