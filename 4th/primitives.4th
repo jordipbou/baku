@@ -220,11 +220,22 @@ variable baku-eq-slen
 
 defer baku-eq-vectors
 
-\ Shen equality is total.  A closure, stream or error object has no Shen
-\ equality structure, so two different such objects compare false rather than
-\ raising; the kernel's writer relies on comparing an arbitrary value with
+\ Closures, streams and errors are outside Shen's equality range: the
+\ specification says comparison of a closure or stream returns false, so even
+\ the identity shortcut must not apply to them.
+: baku-opaque-type? ( type -- flag )
+	dup baku-type-closure = if drop true exit then
+	dup baku-type-stream = if drop true exit then
+	baku-type-error = ;
+
+: baku-opaque? ( x -- flag )
+	dup baku-object? if baku-object-type baku-opaque-type? else drop false then ;
+
+\ Shen equality is total.  An opaque object compares false even with itself and
+\ never raises; the kernel's writer relies on comparing an arbitrary value with
 \ (fail) without trapping an error.
 : baku-eq? ( a b -- flag )
+	over baku-opaque? over baku-opaque? or if 2drop false exit then
 	2dup = if 2drop true exit then
 	over baku-number? over baku-number? and if baku-number= exit then
 	over baku-string? over baku-string? and if baku-string= exit then

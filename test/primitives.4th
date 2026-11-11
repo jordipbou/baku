@@ -182,9 +182,12 @@ s" (= () ())" run baku-true = 65 check
 s" (= () false)" run baku-false = 66 check
 s" (= true false)" run baku-false = 67 check
 
-\ Closures have no Shen equality; comparison is false, never an error.
+\ Closures have no Shen equality; comparison is false, never an error.  ShenDoc
+\ says a closure compares false even with itself, so the identity shortcut must
+\ not apply.
 s" (= (lambda X X) (lambda X X))" run baku-false = 68 check
 s" (= (lambda X X) 1)" run baku-false = 69 check
+s" (let F (lambda X X) (= F F))" run baku-false = 79 check
 
 s" (number? 1)" run baku-true = 70 check
 s" (number? -1.5)" run baku-true = 71 check
