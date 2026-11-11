@@ -131,4 +131,8 @@ dup baku-float? 66 check
 dup baku-float@ 3.5e 0e f~ 67 check
 drop
 
+\ A constructor leaves exactly one value on the stack.
+baku-nongc-reset
+depth >r s" hi" baku-string depth r> - 1 = 68 check drop
+
 ." BAKU-TEST-DONE" cr

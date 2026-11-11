@@ -262,7 +262,7 @@ variable baku-string-len
 	dup 0 < if baku-invalid-argument throw then
 	baku-string-len ! baku-string-src !
 	baku-string-len @ baku-type-string baku-alloc
-	dup >r
+	>r
 	baku-string-src @ r@ cell + baku-string-len @ cmove
 	r> ;
 
