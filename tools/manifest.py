@@ -286,16 +286,16 @@ def check_mappings(host_applied, defun_names, mapping):
         raise ManifestError(
             "host symbols without a mapping row: %s"
             % ", ".join(sorted(missing)))
-    extra = set(mapping) - host_applied
-    if extra:
-        raise ManifestError(
-            "mapping rows for symbols the corpus never applies: %s"
-            % ", ".join(sorted(extra)))
     shadowed = set(mapping) & defun_names
     if shadowed:
         raise ManifestError(
             "mapping rows name defun-defined kernel functions: %s"
             % ", ".join(sorted(shadowed)))
+    extra = set(mapping) - host_applied
+    if extra:
+        raise ManifestError(
+            "mapping rows for symbols the corpus never applies: %s"
+            % ", ".join(sorted(extra)))
     for name, (ans, note) in sorted(mapping.items()):
         if not ans.strip():
             raise ManifestError("mapping row %r has no ANS Forth entry" % name)
