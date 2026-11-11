@@ -95,6 +95,7 @@ variable baku-tail-args
 0 constant baku-closure-interpreted
 1 constant baku-closure-primitive
 2 constant baku-closure-partial
+3 constant baku-closure-native
 
 : baku-closure? ( x -- flag )
 	dup baku-object? if baku-object-type baku-type-closure = else drop false then ;
@@ -404,6 +405,14 @@ variable baku-partial-arity
 	then
 	false ;
 
+\ Native code lives in the dictionary and is installed by 4th/native.4th.  The
+\ defer keeps the application path complete before that layer loads; a native
+\ closure can only exist after the generator has bound this word.
+defer baku-native-run
+: baku-native-unavailable ( code env args -- value )
+	2drop drop baku-eval-not-callable throw ;
+' baku-native-unavailable is baku-native-run
+
 \ The trampoline.  Each iteration applies one closure; an interpreted body that
 \ ends in a tail call leaves a request instead of recursing, so the loop adopts
 \ the new closure and arguments without touching the return stack.  A primitive
@@ -415,16 +424,27 @@ variable baku-partial-arity
 		baku-apply-args ! baku-apply-fn !
 		baku-apply-fn @ baku-closure? 0= if baku-eval-not-callable throw then
 		baku-apply-curry if exit then
-		baku-apply-fn @ baku-closure-kind baku-closure-interpreted = if
+		baku-apply-fn @ baku-closure-kind
+		dup baku-closure-interpreted = if
+			drop
 			baku-apply-fn @ baku-closure-env
 			baku-apply-args @
 			baku-apply-fn @ baku-closure-code
 			baku-eval-body
 		else
-			baku-apply-fn @ baku-closure-code
-			baku-apply-fn @ baku-closure-arity
-			baku-apply-args @
-			baku-apply-primitive
+			dup baku-closure-native = if
+				drop
+				baku-apply-fn @ baku-closure-code
+				baku-apply-fn @ baku-closure-env
+				baku-apply-args @
+				baku-native-run
+			else
+				drop
+				baku-apply-fn @ baku-closure-code
+				baku-apply-fn @ baku-closure-arity
+				baku-apply-args @
+				baku-apply-primitive
+			then
 		then
 		dup baku-tail-pending? if
 			drop baku-tail-fn @ baku-tail-args @

@@ -16,6 +16,7 @@
 	S" reader.4th" INCLUDED
 	S" frontend.4th" INCLUDED
 	S" eval.4th" INCLUDED
+	S" native.4th" INCLUDED
 	S" primitives.4th" INCLUDED
 	S" compat.4th" INCLUDED
 	S" boot.4th" INCLUDED
@@ -26,6 +27,7 @@
 	S" 4th/reader.4th" INCLUDED
 	S" 4th/frontend.4th" INCLUDED
 	S" 4th/eval.4th" INCLUDED
+	S" 4th/native.4th" INCLUDED
 	S" 4th/primitives.4th" INCLUDED
 	S" 4th/compat.4th" INCLUDED
 	S" 4th/boot.4th" INCLUDED
