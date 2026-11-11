@@ -690,6 +690,86 @@ create baku-io-byte-buffer 1 allot
 	baku-invalid-argument throw ;
 
 \ ---------------------------------------------------------------------------
+\ Time
+\
+\ GET-TIME takes the symbol RUN or UNIX.  UNIX is epoch seconds, converted from
+\ the Facility word TIME&DATE by a Gregorian civil-date count; RUN is the same
+\ clock clamped so it never decreases, minus the reading taken at the first RUN
+\ call.  Both therefore share one source (TIME&DATE) instead of two mappings.
+\ The clamp matters because TIME&DATE reads the wall clock, which can step
+\ backwards; RUN is used for elapsed measurements where a negative delta would
+\ be wrong.  Second resolution is the resolution TIME&DATE offers.
+\
+\ TIME&DATE leaves ( sec min hour day month year ), local time.  The epoch is
+\ therefore local-time epoch seconds, not UTC; the kernel only uses UNIX to seed
+\ its random generator, so a timezone offset is harmless and documented here.
+\ ---------------------------------------------------------------------------
+
+create baku-time-month-days
+	0 , 31 , 59 , 90 , 120 , 151 , 181 , 212 , 243 , 273 , 304 , 334 ,
+
+variable baku-time-sec
+variable baku-time-min
+variable baku-time-hour
+variable baku-time-day
+variable baku-time-month
+variable baku-time-year
+variable baku-time-base
+variable baku-time-last
+variable baku-time-ready
+
+: baku-time-leap? ( year -- flag )
+	dup 4 mod 0= over 100 mod 0<> and swap 400 mod 0= or ;
+
+\ Days from year 1 to the first day of YEAR, by the Gregorian leap rule.
+: baku-time-days-before-year ( year -- days )
+	1-                                  ( y1 )
+	dup 365 *                           ( y1 n )
+	over 4 / +                          ( y1 n )
+	over 100 / -                        ( y1 n )
+	over 400 / +                        ( y1 n )
+	nip ;
+
+\ Days from the first of the current month to the current day.
+: baku-time-days-into-year ( -- days )
+	baku-time-month @ 1- cells baku-time-month-days + @
+	baku-time-month @ 2 > if
+		baku-time-year @ baku-time-leap? if 1+ then
+	then
+	baku-time-day @ 1- + ;
+
+: baku-time-epoch ( -- n )
+	time&date
+	baku-time-year ! baku-time-month ! baku-time-day !
+	baku-time-hour ! baku-time-min ! baku-time-sec !
+	baku-time-year @ baku-time-days-before-year
+	1970 baku-time-days-before-year -
+	baku-time-days-into-year + 86400 *
+	baku-time-hour @ 3600 * +
+	baku-time-min @ 60 * +
+	baku-time-sec @ + ;
+
+: baku-time-run ( -- n )
+	baku-time-epoch
+	baku-time-ready @ 0= if
+		dup baku-time-base !
+		1 baku-time-ready !
+	then
+	baku-time-last @ max
+	dup baku-time-last !
+	baku-time-base @ - ;
+
+: baku-prim-get-time ( sym -- n )
+	dup baku-symbol? 0= if drop baku-eval-type throw then
+	dup s" unix" baku-symbol-text= if
+		drop baku-time-epoch s>d baku-fixnum-of-d exit
+	then
+	dup s" run" baku-symbol-text= 0= if
+		drop baku-invalid-argument throw
+	then
+	drop baku-time-run baku-fixnum ;
+
+\ ---------------------------------------------------------------------------
 \ Registration
 \ ---------------------------------------------------------------------------
 
@@ -728,6 +808,7 @@ create baku-io-byte-buffer 1 allot
 	['] baku-prim-write-byte 2 s" write-byte" baku-intern baku-defprim
 	['] baku-prim-read-unit-string 1 s" read-unit-string" baku-intern baku-defprim
 	['] baku-prim-write-string 2 s" write-string" baku-intern baku-defprim
-	['] baku-prim-char-stream? 1 s" char-stream?" baku-intern baku-defprim ;
+	['] baku-prim-char-stream? 1 s" char-stream?" baku-intern baku-defprim
+	['] baku-prim-get-time 1 s" get-time" baku-intern baku-defprim ;
 
 baku-primitives-init

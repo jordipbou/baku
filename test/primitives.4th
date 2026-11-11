@@ -502,4 +502,54 @@ s" (trap-error (simple-error (cons 1 2)) (lambda E 99))" run
 s" (let E (trap-error (simple-error (str boom)) (lambda E E)) (error-to-string E))" run
 	s" boom" test-str= 240 check
 
+\ ---------------------------------------------------------------------------
+\ Time primitive
+\
+\ UNIX is finite epoch seconds from TIME&DATE; RUN is the same clock clamped and
+\ relative to its first reading, so two readings never decrease.  The strict
+\ advance over a 1.1 s sleep proves the counter reads a real clock rather than a
+\ constant; TIME&DATE has one-second resolution, so 1.1 s always crosses a
+\ boundary.  The timezone of UNIX is the host's local time; only its magnitude
+\ is checked, because the kernel uses it to seed a random generator.
+\ ---------------------------------------------------------------------------
+
+variable baku-time-before
+
+: baku-time-advanced? ( -- flag )
+	baku-time-run baku-time-before !
+	1100 ms
+	baku-time-run baku-time-before @ > ;
+
+s" unix" baku-intern baku-prim-get-time
+dup baku-fixnum? 241 check
+	baku-fixnum-value dup 1000000000 > 242 check
+	5000000000 < 243 check
+
+s" run" baku-intern baku-prim-get-time
+dup baku-fixnum? 244 check
+baku-fixnum-value 0 >= 245 check
+
+s" run" baku-intern baku-prim-get-time baku-fixnum-value
+s" run" baku-intern baku-prim-get-time baku-fixnum-value
+>= 246 check
+
+baku-time-advanced? 247 check
+
+s" bogus" baku-intern ' baku-prim-get-time prim-error-1
+	baku-invalid-argument = 248 check
+1 baku-fixnum ' baku-prim-get-time prim-error-1
+	baku-eval-type = 249 check
+
+\ Through the evaluator: registration, both directions and catchable errors.
+s" (get-time unix)" run dup baku-fixnum? 250 check
+	baku-fixnum-value 1000000000 > 251 check
+s" (let A (get-time run) (let B (get-time run) (>= B A)))" run
+	baku-true = 252 check
+s" (trap-error (get-time bogus) (lambda E 99))" run
+	baku-fixnum-value 99 = 253 check
+s" (trap-error (get-time 1) (lambda E 98))" run
+	baku-fixnum-value 98 = 254 check
+s" (get-time run)" run dup baku-fixnum? 255 check
+	baku-fixnum-value 0 >= 256 check
+
 ." BAKU-TEST-DONE" cr
