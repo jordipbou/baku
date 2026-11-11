@@ -19,9 +19,9 @@
 \ their exact length, and rounds only the advance.  Use BAKU-OBJECT-TOTAL when
 \ walking the heap.
 
-\ Object types.  The closure, stream and error kinds are reserved here; their
-\ payload layouts belong to the layers that own them (M4 for closures/code,
-\ M5 for streams and errors).
+\ Object types.  The closure and stream kinds are reserved here; their payload
+\ layouts belong to the layers that own them (M4 for closures/code and M5 for
+\ streams).  The error object's inline-message layout is defined below.
 1 constant baku-type-cons
 2 constant baku-type-string
 3 constant baku-type-symbol

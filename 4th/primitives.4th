@@ -25,6 +25,10 @@
 \              strings, identity for interned symbols and immediates, element
 \              equality for vectors, recursive equality for conses; a closure,
 \              stream or error object compares false instead of raising
+\   open close read-byte write-byte read-unit-string write-string char-stream?
+\              a stream is a stream object holding a mode and a Forth fileid;
+\              files are byte streams, the standard streams are character
+\              streams; read-byte returns -1 at end of file
 \
 \ The current target has 64-bit cells and no boxed integers (M0).  A fixnum
 \ arithmetic result outside the fixnum range is therefore a catchable
@@ -43,6 +47,7 @@
 
 -281 constant baku-arithmetic-overflow
 -282 constant baku-division-by-zero
+-283 constant baku-file-error
 
 \ ---------------------------------------------------------------------------
 \ Fixnum range
@@ -525,6 +530,166 @@ create baku-byte-buffer 1 allot
 	baku-prim-str ;
 
 \ ---------------------------------------------------------------------------
+\ Streams and file I/O
+\
+\ A stream is a BAKU-TYPE-STREAM object with two raw payload cells:
+\
+\   [ mode, handle ]
+\
+\   mode 0  a file opened through OPEN, HANDLE is the Forth fileid
+\   mode 1  standard input, read with KEY
+\   mode 2  standard output, written with EMIT and TYPE
+\
+\ Files are byte streams (CHAR-STREAM? is false), which the I/O spec allows for
+\ a byte-oriented port; the standard streams are character streams.  The kernel
+\ chooses READ-UNIT-STRING/WRITE-STRING for a character stream and
+\ READ-BYTE/WRITE-BYTE otherwise, so both paths must work.
+\
+\ The stream object is allocated only after the file operation succeeds, so a
+\ failed OPEN leaves no handle and no heap object behind.  A failed READ, WRITE
+\ or CLOSE raises the catchable BAKU-FILE-ERROR; TRAP-ERROR sees it as a fixnum
+\ like every other raw Forth code.
+\ ---------------------------------------------------------------------------
+
+0 constant baku-stream-file
+1 constant baku-stream-input
+2 constant baku-stream-output
+
+: baku-stream? ( x -- flag )
+	dup baku-object? if baku-object-type baku-type-stream = else drop false then ;
+
+: baku-stream ( mode handle -- obj )
+	2 cells baku-type-stream baku-alloc       ( mode handle obj )
+	dup >r 2 cells + !                        ( mode | R: obj )
+	r@ cell + !
+	r> ;
+
+: baku-stream-mode ( obj -- mode )
+	dup baku-stream? 0= if baku-eval-type throw then cell + @ ;
+
+: baku-stream-handle ( obj -- handle )
+	dup baku-stream? 0= if baku-eval-type throw then 2 cells + @ ;
+
+: baku-stdin-stream ( -- obj ) baku-stream-input 0 baku-stream ;
+: baku-stdout-stream ( -- obj ) baku-stream-output 0 baku-stream ;
+
+: baku-symbol-text= ( sym c-addr u -- flag )
+	2>r
+	dup baku-symbol? 0= if drop 2r> 2drop false exit then
+	dup baku-symbol-name-len 2r@ nip <> if drop 2r> 2drop false exit then
+	baku-symbol-name-addr 2r@ baku-bytes= 2r> 2drop ;
+
+variable baku-io-stream
+variable baku-io-str
+variable baku-io-byte
+variable baku-io-name
+variable baku-io-dir
+create baku-io-byte-buffer 1 allot
+
+\ Fileid and IOR are on the stack; a non-zero IOR discards both and throws.
+: baku-stream-from-file ( fileid ior -- obj )
+	dup 0<> if 2drop baku-file-error throw then
+	drop baku-stream-file swap baku-stream ;
+
+: baku-prim-open ( name dir -- obj )
+	baku-io-dir ! baku-io-name !
+	baku-io-name @ baku-string? 0= if baku-eval-type throw then
+	baku-io-dir @ baku-symbol? 0= if baku-eval-type throw then
+	baku-io-dir @ s" in" baku-symbol-text= if
+		baku-io-name @ baku-string-addr
+		baku-io-name @ baku-string-length
+		r/o bin open-file baku-stream-from-file exit
+	then
+	baku-io-dir @ s" out" baku-symbol-text= 0= if
+		baku-invalid-argument throw
+	then
+	baku-io-name @ baku-string-addr
+	baku-io-name @ baku-string-length
+	w/o bin create-file baku-stream-from-file ;
+
+: baku-prim-close ( obj -- obj )
+	dup baku-stream? 0= if baku-eval-type throw then
+	dup baku-stream-mode baku-stream-file = if
+		dup baku-stream-handle close-file
+		0<> if baku-file-error throw then
+	then ;
+
+: baku-prim-char-stream? ( obj -- result )
+	dup baku-stream? 0= if baku-eval-type throw then
+	baku-stream-mode baku-stream-file = if baku-false else baku-true then ;
+
+\ Read one raw byte; -1 means end of file.  Standard input goes through KEY so
+\ the character-stream contract holds; a file goes through READ-FILE.
+: baku-read-one-byte ( obj -- n )
+	dup baku-stream? 0= if baku-eval-type throw then
+	dup baku-stream-mode
+	dup baku-stream-input = if
+		2drop key exit
+	then
+	dup baku-stream-file = 0= if
+		2drop baku-invalid-argument throw
+	then
+	drop baku-stream-handle                    ( fileid )
+	baku-io-byte-buffer 1 rot read-file        ( u2 ior )
+	dup 0<> if 2drop baku-file-error throw then
+	drop
+	dup 0= if drop -1 exit then
+	drop baku-io-byte-buffer c@ ;
+
+: baku-prim-read-byte ( obj -- n )
+	baku-read-one-byte baku-fixnum ;
+
+: baku-prim-read-unit-string ( obj -- str )
+	baku-read-one-byte
+	dup 0< if drop baku-file-error throw then
+	baku-io-byte-buffer c!
+	baku-io-byte-buffer 1 baku-string ;
+
+\ KLambda order is (byte stream); write-byte returns the stream.
+: baku-prim-write-byte ( byte obj -- obj )
+	baku-io-stream !
+	baku-io-byte !
+	baku-io-stream @ baku-stream? 0= if baku-eval-type throw then
+	baku-io-byte @ dup baku-fixnum? 0= if drop baku-eval-type throw then
+	baku-fixnum-value
+	dup 0< over 255 > or if drop baku-invalid-argument throw then
+	baku-io-byte-buffer c!
+	baku-io-stream @ baku-stream-mode
+	dup baku-stream-output = if
+		drop baku-io-byte-buffer c@ emit baku-io-stream @ exit
+	then
+	baku-stream-file = if
+		baku-io-stream @ baku-stream-handle
+		baku-io-byte-buffer 1 rot write-file
+		0<> if baku-file-error throw then
+		baku-io-stream @ exit
+	then
+	baku-invalid-argument throw ;
+
+\ KLambda order is (string stream); write-string returns the string.
+: baku-prim-write-string ( str obj -- str )
+	baku-io-stream !
+	baku-io-str !
+	baku-io-stream @ baku-stream? 0= if baku-eval-type throw then
+	baku-io-str @ baku-string? 0= if baku-eval-type throw then
+	baku-io-stream @ baku-stream-mode
+	dup baku-stream-output = if
+		drop
+		baku-io-str @ baku-string-addr
+		baku-io-str @ baku-string-length
+		type baku-io-str @ exit
+	then
+	baku-stream-file = if
+		baku-io-str @ baku-string-addr
+		baku-io-str @ baku-string-length
+		baku-io-stream @ baku-stream-handle
+		write-file
+		0<> if baku-file-error throw then
+		baku-io-str @ exit
+	then
+	baku-invalid-argument throw ;
+
+\ ---------------------------------------------------------------------------
 \ Registration
 \ ---------------------------------------------------------------------------
 
@@ -556,6 +721,13 @@ create baku-byte-buffer 1 allot
 	['] baku-prim-n->string 1 s" n->string" baku-intern baku-defprim
 	['] baku-prim-intern 1 s" intern" baku-intern baku-defprim
 	['] baku-prim-simple-error 1 s" simple-error" baku-intern baku-defprim
-	['] baku-prim-error-to-string 1 s" error-to-string" baku-intern baku-defprim ;
+	['] baku-prim-error-to-string 1 s" error-to-string" baku-intern baku-defprim
+	['] baku-prim-open 2 s" open" baku-intern baku-defprim
+	['] baku-prim-close 1 s" close" baku-intern baku-defprim
+	['] baku-prim-read-byte 1 s" read-byte" baku-intern baku-defprim
+	['] baku-prim-write-byte 2 s" write-byte" baku-intern baku-defprim
+	['] baku-prim-read-unit-string 1 s" read-unit-string" baku-intern baku-defprim
+	['] baku-prim-write-string 2 s" write-string" baku-intern baku-defprim
+	['] baku-prim-char-stream? 1 s" char-stream?" baku-intern baku-defprim ;
 
 baku-primitives-init
