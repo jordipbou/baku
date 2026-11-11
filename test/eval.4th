@@ -280,4 +280,61 @@ s" (let F (two-args 10) (F 1 2))" baku-eval-arity 71 check-error
 \ The interpreter remains usable after a partial-application error.
 s" (let F (add1) (F 41))" run baku-fixnum-value 42 = 72 check
 
+\ ---------------------------------------------------------------------------
+\ SET and VALUE: global variables
+\ ---------------------------------------------------------------------------
+
+s" (set g 42)" run baku-fixnum-value 42 = 73 check
+s" (value g)" run baku-fixnum-value 42 = 74 check
+s" (set g 7)" run baku-fixnum-value 7 = 75 check
+s" (value g)" run baku-fixnum-value 7 = 76 check
+
+\ The first argument is evaluated, so a computed symbol names the global.
+s" (let K h (set K 9))" run baku-fixnum-value 9 = 77 check
+s" (value h)" run baku-fixnum-value 9 = 78 check
+
+\ A global can hold any Shen value, including a closure.
+s" (set f (freeze 11))" run drop
+s" ((value f))" run baku-fixnum-value 11 = 79 check
+
+\ Re-setting a bound global updates its binding in place and allocates nothing.
+s" (set g 0)" run drop
+baku-nongc-used >r
+s" g" baku-intern 1 baku-fixnum baku-prim-set drop
+s" g" baku-intern 2 baku-fixnum baku-prim-set drop
+s" g" baku-intern 3 baku-fixnum baku-prim-set drop
+baku-nongc-used r> - 0 = 80 check
+
+\ An unbound value is a catchable error, and the interpreter stays usable.
+s" (value no-such-global)" baku-eval-unbound 81 check-error
+s" (trap-error (value no-such-global) (lambda E 99))" run
+baku-fixnum-value 99 = 82 check
+s" (value g)" run baku-fixnum-value 3 = 83 check
+
+\ Non-symbol arguments to SET and VALUE are catchable type errors.
+s" (value 1)" baku-eval-type 84 check-error
+s" (set 1 2)" baku-eval-type 85 check-error
+s" (value g)" run baku-fixnum-value 3 = 86 check
+
+\ A hash collision must not hide the older function or global binding.
+s" f0" baku-intern baku-fn-bucket @
+s" f165" baku-intern baku-fn-bucket @ = 87 check
+s" (defun f0 () 1)" run drop
+s" (defun f165 () 2)" run drop
+s" (f0)" run baku-fixnum-value 1 = 88 check
+s" (f165)" run baku-fixnum-value 2 = 89 check
+s" (defun f0 () 3)" run drop
+s" (f0)" run baku-fixnum-value 3 = 90 check
+s" (f165)" run baku-fixnum-value 2 = 91 check
+
+s" g0" baku-intern baku-global-bucket @
+s" g143" baku-intern baku-global-bucket @ = 92 check
+s" (set g0 10)" run drop
+s" (set g143 20)" run drop
+s" (value g0)" run baku-fixnum-value 10 = 93 check
+s" (value g143)" run baku-fixnum-value 20 = 94 check
+s" (set g0 11)" run drop
+s" (value g0)" run baku-fixnum-value 11 = 95 check
+s" (value g143)" run baku-fixnum-value 20 = 96 check
+
 ." BAKU-TEST-DONE" cr

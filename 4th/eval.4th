@@ -63,6 +63,8 @@
 -276 constant baku-eval-not-callable
 -277 constant baku-eval-cond-failed
 -278 constant baku-eval-malformed
+-279 constant baku-eval-unbound
+-280 constant baku-eval-type
 
 variable baku-raised-value
 
@@ -125,6 +127,11 @@ variable baku-mk-kind
 
 \ ---------------------------------------------------------------------------
 \ Global function table
+\
+\ A bucket holds a list of entries; an entry is a cons of a BINDING and the
+\ next entry, and a binding is a (name . closure) cons.  Comparing the binding's
+\ head and returning its tail keeps a hash collision from hiding the older
+\ definition.  BAKU-FN-DEFINE prepends, so last-definition-wins.
 \ ---------------------------------------------------------------------------
 
 create baku-fn-buckets baku-symbol-buckets-count cells allot
@@ -141,18 +148,17 @@ create baku-fn-buckets baku-symbol-buckets-count cells allot
 : baku-fn-lookup ( sym -- closure flag )
 	dup baku-fn-bucket @
 	begin dup baku-cons? while
-		dup baku-hd 2 pick = if
-			nip baku-tl true exit
+		dup baku-hd dup baku-hd 3 pick = if
+			baku-tl nip nip true exit
 		then
-		baku-tl
+		drop baku-tl
 	repeat
 	2drop baku-nil false ;
 
 : baku-fn-define ( closure sym -- )
-	dup baku-fn-bucket
-	>r
+	dup baku-fn-bucket >r
 	swap baku-cons
-	r@ @ swap
+	r@ @ baku-cons
 	r> ! ;
 
 : baku-primitive-closure ( xt arity -- closure )
@@ -160,6 +166,65 @@ create baku-fn-buckets baku-symbol-buckets-count cells allot
 
 : baku-defprim ( xt arity name -- )
 	>r baku-primitive-closure r> baku-fn-define ;
+
+\ ---------------------------------------------------------------------------
+\ Global variable table
+\
+\ SET and VALUE name a global through an interned symbol, so the table is keyed
+\ by symbol identity like the function table.  An existing binding is updated in
+\ place: the kernel re-sets counters such as shen.*infs* on every inference, and
+\ prepending a fresh pair each time would grow the non-GC heap without bound.
+\ Entries use the same (binding . next) shape as the function table, so a hash
+\ collision cannot hide a binding.  A new binding is a (symbol . value) cons in
+\ the selected heap; at boot that is the permanent non-GC heap, and the table is
+\ a GC root.  The bucket array lives in the dictionary and survives a heap move.
+\ ---------------------------------------------------------------------------
+
+create baku-global-buckets baku-symbol-buckets-count cells allot
+
+: baku-global-reset ( -- )
+	baku-global-buckets baku-symbol-buckets-count 0 ?do
+		0 over ! cell+
+	loop drop ;
+
+: baku-global-bucket ( sym -- addr )
+	dup baku-symbol-name-addr swap baku-symbol-name-len
+	baku-hash cells baku-global-buckets + ;
+
+: baku-global-pair ( sym -- pair flag )
+	dup baku-global-bucket @
+	begin dup baku-cons? while
+		dup baku-hd dup baku-hd 3 pick = if
+			nip nip true exit
+		then
+		drop baku-tl
+	repeat
+	2drop false ;
+
+: baku-global-lookup ( sym -- value flag )
+	baku-global-pair if baku-tl true else baku-nil false then ;
+
+: baku-global-define ( sym value -- value )
+	over baku-global-pair if
+		>r swap drop
+		r@ baku-set-tl
+		r> baku-tl
+	else
+		dup >r
+		over baku-global-bucket >r
+		baku-cons
+		r@ @ baku-cons
+		r> !
+		r>
+	then ;
+
+: baku-prim-set ( sym value -- value )
+	over baku-symbol? 0= if baku-eval-type throw then
+	baku-global-define ;
+
+: baku-prim-value ( sym -- value )
+	dup baku-symbol? 0= if baku-eval-type throw then
+	baku-global-lookup if else drop baku-eval-unbound throw then ;
 
 \ ---------------------------------------------------------------------------
 \ Environments
@@ -505,6 +570,9 @@ variable baku-partial-arity
 
 : baku-eval-init ( -- )
 	baku-fn-reset
-	baku-nil baku-raised-value ! ;
+	baku-global-reset
+	baku-nil baku-raised-value !
+	['] baku-prim-set 2 s" set" baku-intern baku-defprim
+	['] baku-prim-value 1 s" value" baku-intern baku-defprim ;
 
 baku-eval-init
