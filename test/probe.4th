@@ -17,6 +17,7 @@
 
 baku-probe-fail @ 0= 1 probe-check
 baku-probe-facility @ 0= 2 probe-check
+[DEFINED] TIME&DATE 11 probe-check
 baku-probe-memory @ 0= 3 probe-check
 baku-probe-floating @ 0= 4 probe-check
 baku-probe-file @ 0= 5 probe-check

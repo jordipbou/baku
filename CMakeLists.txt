@@ -23,7 +23,7 @@ add_compile_definitions(SLOTH_STACK_SIZE=16384 SLOTH_RETURN_STACK_SIZE=16384)
 FetchContent_Declare(
 	sloth
 	GIT_REPOSITORY https://github.com/jordipbou/sloth
-	GIT_TAG 359b81b6d64b2e56b4b9d6d34a174f32d75d1175
+	GIT_TAG a04bc75d5dd7b91e756b5e69de0ded0e00095738
 	SOURCE_SUBDIR platforms/c
 	EXCLUDE_FROM_ALL
 )

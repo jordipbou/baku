@@ -1,9 +1,9 @@
 # Checks the startup probe report for one Baku target.
 #
 # A passing test must exit zero and contain one PRESENT line for every required
-# wordset plus the MARKER/DOES> result.  This is stronger than the generic
-# marker runner: an absent required wordset aborts the probe, so it cannot be
-# hidden behind BAKU-TEST-DONE.
+# wordset, Facility TIME&DATE, and the MARKER/DOES> result.  This is stronger
+# than the generic marker runner: an absent required wordset aborts the probe,
+# so it cannot be hidden behind BAKU-TEST-DONE.
 #
 #   cmake -DFORTH=<forth> -DTEST_FILE=<file> -DTARGET=<name>
 #         -DWORKING_DIRECTORY=<dir> -P probe-report.cmake
@@ -40,6 +40,11 @@ foreach(wordset
 			"BAKU-TARGET ${TARGET} PROBE FAIL: ${wordset} not reported PRESENT\n${transcript}")
 	endif()
 endforeach()
+
+if(NOT transcript MATCHES "BAKU-PROBE FACILITY/TIME&DATE[ ]+PRESENT")
+	message(FATAL_ERROR
+		"BAKU-TARGET ${TARGET} PROBE FAIL: FACILITY/TIME&DATE not reported PRESENT\n${transcript}")
+endif()
 
 if(NOT transcript MATCHES "BAKU-PROBE MARKER/DOES>[ ]+PRESENT")
 	message(FATAL_ERROR

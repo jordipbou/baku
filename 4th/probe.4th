@@ -51,9 +51,10 @@ variable baku-probe-double      0 baku-probe-double !
 		abort
 	then ;
 
-\ Facility.  The words below are the standard Facility structure and screen
-\ words Baku can rely on; TIME&DATE is a Facility extension that Sloth lacks,
-\ so it is not part of this required-wordset probe.
+\ Facility.  The words below are the standard Facility structure, screen and
+\ clock words Baku relies on.  TIME&DATE is required by the M0 get-time
+\ decision, so its absence fails the Facility wordset.
+[DEFINED] TIME&DATE        baku-probe-facility s" FACILITY/TIME&DATE"        baku-probe-word
 [DEFINED] AT-XY            baku-probe-facility s" FACILITY/AT-XY"            baku-probe-word
 [DEFINED] BEGIN-STRUCTURE  baku-probe-facility s" FACILITY/BEGIN-STRUCTURE"  baku-probe-word
 [DEFINED] END-STRUCTURE    baku-probe-facility s" FACILITY/END-STRUCTURE"    baku-probe-word
