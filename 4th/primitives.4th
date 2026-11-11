@@ -19,6 +19,8 @@
 \   <-address  read a cell at a zero-based index
 \   cons cons? hd tl  Baku cons cells; HD and TL raise a catchable type error
 \              on a non-cons
+\   intern     intern a string case-sensitively; the textual names TRUE and
+\              FALSE yield the reserved immediates, matching the reader
 \   =          Shen equality: numeric across fixnum/float, byte equality for
 \              strings, identity for interned symbols and immediates, element
 \              equality for vectors, recursive equality for conses; a closure,
@@ -505,6 +507,16 @@ create baku-byte-buffer 1 allot
 	baku-eval-type throw ;
 
 \ ---------------------------------------------------------------------------
+\ Symbol primitives
+\ ---------------------------------------------------------------------------
+
+: baku-prim-intern ( obj -- sym )
+	dup baku-string? 0= if baku-eval-type throw then
+	dup baku-string-addr swap baku-string-length      ( c-addr u )
+	2dup baku-immediate-name if nip nip exit then
+	baku-intern ;
+
+\ ---------------------------------------------------------------------------
 \ Registration
 \ ---------------------------------------------------------------------------
 
@@ -533,6 +545,7 @@ create baku-byte-buffer 1 allot
 	['] baku-prim-tlstr 1 s" tlstr" baku-intern baku-defprim
 	['] baku-prim-cn 2 s" cn" baku-intern baku-defprim
 	['] baku-prim-string->n 1 s" string->n" baku-intern baku-defprim
-	['] baku-prim-n->string 1 s" n->string" baku-intern baku-defprim ;
+	['] baku-prim-n->string 1 s" n->string" baku-intern baku-defprim
+	['] baku-prim-intern 1 s" intern" baku-intern baku-defprim ;
 
 baku-primitives-init

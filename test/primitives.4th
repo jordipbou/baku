@@ -428,4 +428,35 @@ s" (trap-error (absvector true) (lambda E 97))" run
 	baku-fixnum-value 97 = 206 check
 s" (+ 1 2)" run baku-fixnum-value 3 = 207 check
 
+\ ---------------------------------------------------------------------------
+\ Symbol primitive
+\ ---------------------------------------------------------------------------
+
+s" foo" baku-string baku-prim-intern baku-symbol? 208 check
+s" foo" baku-string baku-prim-intern s" foo" baku-intern = 209 check
+s" foo" baku-string baku-prim-intern
+	s" foo" baku-string baku-prim-intern = 210 check
+
+\ Interning is case-sensitive and treats _ and - as distinct characters.
+s" Foo" baku-string baku-prim-intern s" foo" baku-intern = 0= 211 check
+s" a_b" baku-string baku-prim-intern s" a-b" baku-intern = 0= 212 check
+s" ;" baku-string baku-prim-intern baku-prim-str s" ;" test-str= 213 check
+
+\ The names TRUE and FALSE denote the reserved immediates, exactly as the reader
+\ maps the same tokens, so a string round-trip cannot create a second meaning.
+s" true" baku-string baku-prim-intern baku-true = 214 check
+s" false" baku-string baku-prim-intern baku-false = 215 check
+s" true" baku-string baku-prim-intern baku-symbol? 0= 216 check
+
+\ A non-string argument is a catchable type error at both boundaries.
+1 baku-fixnum ' baku-prim-intern prim-error-1 baku-eval-type = 217 check
+s" (trap-error (intern 1) (lambda E 99))" run
+	baku-fixnum-value 99 = 218 check
+
+\ Through the evaluator: registration, identity and the empty name.
+s" (intern (str foo))" run s" foo" baku-intern = 219 check
+s" (= (intern (str foo)) (intern (str foo)))" run baku-true = 220 check
+0 0 baku-intern s" " baku-string baku-prim-intern = 221 check
+s" (intern (str true))" run baku-true = 222 check
+
 ." BAKU-TEST-DONE" cr

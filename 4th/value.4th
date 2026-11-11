@@ -396,6 +396,26 @@ variable baku-new-bucket
 	loop
 	2drop true ;
 
+\ The textual names TRUE and FALSE denote the reserved immediates, not symbols.
+\ The reader and the INTERN primitive share this mapping so the two cannot
+\ disagree on what the name means.
+variable baku-name-addr
+variable baku-name-len
+
+: baku-immediate-name ( c-addr u -- x true | false )
+	baku-name-len ! baku-name-addr !
+	baku-name-len @ 4 = if
+		baku-name-addr @ s" true" drop baku-name-len @ baku-bytes= if
+			baku-true true exit
+		then
+	then
+	baku-name-len @ 5 = if
+		baku-name-addr @ s" false" drop baku-name-len @ baku-bytes= if
+			baku-false true exit
+		then
+	then
+	false ;
+
 \ Small polynomial rolling hash.  The mask is tied to the bucket count so a
 \ change to the table size cannot read outside the table.
 : baku-hash ( c-addr u -- h )

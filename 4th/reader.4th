@@ -447,8 +447,8 @@ variable baku-fp-exp-digit
 
 : baku-atom->value ( -- value )
 	baku-buf-addr@ baku-buf-len@
-	2dup s" true" baku-token= if 2drop baku-true exit then
-	2dup s" false" baku-token= if 2drop baku-false exit then
+	baku-immediate-name if exit then
+	baku-buf-addr@ baku-buf-len@
 	2dup baku-parse-integer if rot drop nip exit then
 	2dup baku-parse-float if rot drop nip exit then
 	baku-intern ;
