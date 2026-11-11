@@ -340,11 +340,8 @@ variable baku-int-neg
 	r> base !
 	nip 0= if
 		baku-int-neg @ if dnegate then
-		baku-int-neg @ if
-			dup -1 <> over 0< 0= or if 2drop baku-read-number baku-reader-fail then
-		else
-			dup 0<> over 0< or if 2drop baku-read-number baku-reader-fail then
-		then
+		2dup baku-fixnum-min s>d d< if 2drop baku-read-number baku-reader-fail then
+		2dup baku-fixnum-max s>d 2swap d< if 2drop baku-read-number baku-reader-fail then
 		drop baku-fixnum true
 	else
 		2drop false

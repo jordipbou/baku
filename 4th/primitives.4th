@@ -47,20 +47,10 @@
 \ ---------------------------------------------------------------------------
 \ Fixnum range
 \
-\ A fixnum n is represented as 2n+1, so the representable range is
-\ [-2^(w-2), 2^(w-2)-1] for a w-bit cell.  The bounds are computed from CELL
-\ instead of hard-coding 64 so the same source works on the deferred 32-bit
-\ adaptation.
+\ BAKU-FIXNUM-MIN and BAKU-FIXNUM-MAX are defined in value.4th so the reader
+\ and the arithmetic primitives share one range.  The helpers here turn a
+\ double-cell intermediate into a tagged fixnum, or throw when it does not fit.
 \ ---------------------------------------------------------------------------
-
-: baku-fixnum-max-value ( -- n )
-	1 s>d cell 8 * 2 - 0 ?do d2* loop 1 s>d d- d>s ;
-
-: baku-fixnum-min-value ( -- n )
-	1 s>d cell 8 * 2 - 0 ?do d2* loop dnegate d>s ;
-
-baku-fixnum-max-value constant baku-fixnum-max
-baku-fixnum-min-value constant baku-fixnum-min
 
 variable baku-d-lo
 variable baku-d-hi

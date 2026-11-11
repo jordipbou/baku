@@ -373,6 +373,15 @@ baku-read-form drop baku-float@ 0.0001e 0.000000000000001e f~ assert-true
 baku-read-form 0= assert-true
 baku-read-close
 
+\ Integer literals must fit the tagged fixnum range: 2^(w-2)-1 and -2^(w-2)
+\ read, and one past either end is a located BAKU-READ-NUMBER error rather than
+\ a silent wrap.  The boundary literals are the 64-bit-cell values.
+S" 4611686018427387903" read-one drop baku-fixnum-value baku-fixnum-max assert=
+S" -4611686018427387904" read-one drop baku-fixnum-value baku-fixnum-min assert=
+S" 4611686018427387904" baku-read-string ' baku-read-form catch baku-read-number = assert-true
+S" -4611686018427387905" baku-read-string ' baku-read-form catch baku-read-number = assert-true
+S" 42" read-one drop baku-fixnum-value 42 assert=
+
 \ Comments: both forms are skipped; ';' and '#' remain symbols.
 s" test/fixtures/comments.kl" form-count 6 assert=
 s" test/fixtures/comments.kl" baku-read-file

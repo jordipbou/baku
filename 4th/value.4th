@@ -123,6 +123,20 @@ variable baku-new-kind
 : baku-fixnum? ( x -- flag ) 1 and 0<> ;
 : baku-fixnum-value ( x -- n ) 1- 2/ ;
 
+\ A fixnum n is represented as 2n+1, so the representable range is
+\ [-2^(w-2), 2^(w-2)-1] for a w-bit cell.  The bounds are computed from CELL
+\ instead of hard-coding 64 so the same source works on the deferred 32-bit
+\ adaptation.  They live here, before the reader and the arithmetic primitives,
+\ because both layers must agree on one range.
+: baku-fixnum-max-value ( -- n )
+	1 s>d cell 8 * 2 - 0 ?do d2* loop 1 s>d d- d>s ;
+
+: baku-fixnum-min-value ( -- n )
+	1 s>d cell 8 * 2 - 0 ?do d2* loop dnegate d>s ;
+
+baku-fixnum-max-value constant baku-fixnum-max
+baku-fixnum-min-value constant baku-fixnum-min
+
 : baku-immediate? ( x -- flag ) 7 and 2 = ;
 
 : baku-pointer? ( x -- flag )
