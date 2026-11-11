@@ -459,4 +459,47 @@ s" (= (intern (str foo)) (intern (str foo)))" run baku-true = 220 check
 0 0 baku-intern s" " baku-string baku-prim-intern = 221 check
 s" (intern (str true))" run baku-true = 222 check
 
+\ ---------------------------------------------------------------------------
+\ Error primitives
+\ ---------------------------------------------------------------------------
+
+\ An error object copies its message and is opaque to every other classifier.
+s" boom" baku-error
+dup baku-error? 223 check
+dup baku-prim-error-to-string s" boom" test-str= 224 check
+dup baku-prim-cons? baku-false = 225 check
+dup baku-prim-string? baku-false = 226 check
+dup baku-prim-absvector? baku-false = 227 check
+dup dup baku-prim-eq baku-false = 228 check
+drop
+
+\ simple-error is a catchable Shen error; a non-string is a type error.
+1 baku-fixnum ' baku-prim-simple-error prim-error-1 baku-eval-type = 229 check
+s" boom" baku-string ' baku-prim-simple-error prim-error-1 baku-eval-raised = 230 check
+baku-raised-value @ baku-prim-error-to-string s" boom" test-str= 231 check
+
+\ A raw exception reaches a handler as a fixnum, so error-to-string renders it.
+42 baku-fixnum baku-prim-error-to-string s" 42" test-str= 232 check
+
+\ Through the evaluator: text preservation, one handler run, nesting and
+\ re-raising.  The handler expression in check 236 catches its own error, which
+\ proves the outer exception value is captured before the handler expression is
+\ evaluated (BAKU-RAISED-VALUE is a single cell).
+s" (trap-error (simple-error (str boom)) (lambda E (error-to-string E)))" run
+	s" boom" test-str= 233 check
+s" (let C (set counter 0) (let R (trap-error (simple-error (str boom)) (lambda E (set counter (+ 1 (value counter))))) (value counter)))" run
+	baku-fixnum-value 1 = 234 check
+s" (trap-error (trap-error (simple-error (str inner)) (lambda E (simple-error (cn (str outer) (error-to-string E))))) (lambda E (error-to-string E)))" run
+	s" outerinner" test-str= 235 check
+s" (trap-error (simple-error (str outer)) (trap-error (simple-error (str inner)) (lambda F (lambda E (error-to-string E)))))" run
+	s" outer" test-str= 236 check
+s" (error-to-string (trap-error (trap-error (simple-error (str a)) (lambda E E)) (lambda E 99)))" run
+	s" a" test-str= 237 check
+s" (trap-error (simple-error 1) (lambda E 99))" run
+	baku-fixnum-value 99 = 238 check
+s" (trap-error (simple-error (cons 1 2)) (lambda E 99))" run
+	baku-fixnum-value 99 = 239 check
+s" (let E (trap-error (simple-error (str boom)) (lambda E E)) (error-to-string E))" run
+	s" boom" test-str= 240 check
+
 ." BAKU-TEST-DONE" cr

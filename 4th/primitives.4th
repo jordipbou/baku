@@ -517,6 +517,24 @@ create baku-byte-buffer 1 allot
 	baku-intern ;
 
 \ ---------------------------------------------------------------------------
+\ Errors
+\
+\ SIMPLE-ERROR copies its string into a Baku error object and throws it through
+\ BAKU-RAISE, so TRAP-ERROR receives the object itself.  ERROR-TO-STRING copies
+\ the message back out; a non-error value is rendered with the same rules as
+\ STR, because a raw Forth exception reaches a trap handler as a fixnum.
+\ ---------------------------------------------------------------------------
+
+: baku-prim-simple-error ( obj -- )
+	dup baku-string? 0= if baku-eval-type throw then
+	dup baku-string-addr swap baku-string-length
+	baku-error baku-raise ;
+
+: baku-prim-error-to-string ( x -- str )
+	dup baku-error? if baku-error-message baku-string exit then
+	baku-prim-str ;
+
+\ ---------------------------------------------------------------------------
 \ Registration
 \ ---------------------------------------------------------------------------
 
@@ -546,6 +564,8 @@ create baku-byte-buffer 1 allot
 	['] baku-prim-cn 2 s" cn" baku-intern baku-defprim
 	['] baku-prim-string->n 1 s" string->n" baku-intern baku-defprim
 	['] baku-prim-n->string 1 s" n->string" baku-intern baku-defprim
-	['] baku-prim-intern 1 s" intern" baku-intern baku-defprim ;
+	['] baku-prim-intern 1 s" intern" baku-intern baku-defprim
+	['] baku-prim-simple-error 1 s" simple-error" baku-intern baku-defprim
+	['] baku-prim-error-to-string 1 s" error-to-string" baku-intern baku-defprim ;
 
 baku-primitives-init

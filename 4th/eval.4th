@@ -27,9 +27,9 @@
 \
 \ Errors: a host primitive that must raise a Shen error calls BAKU-RAISE, which
 \ stores a Baku value and throws BAKU-EVAL-RAISED.  TRAP-ERROR catches that code
-\ and hands the stored value to the handler.  A raw Forth exception code is not
-\ a Shen error object; it is passed to the handler as a fixnum so a Forth failure
-\ remains catchable.  The error-object payload and SIMPLE-ERROR belong to M5.
+\ and hands the stored value to the handler.  SIMPLE-ERROR builds the error
+\ object; a raw Forth exception code is not a Shen error object and is passed to
+\ the handler as a fixnum so a Forth failure remains catchable.
 \
 \ Tail calls: the front end marks a call that sits in a tail position.  Instead
 \ of applying such a call recursively, BAKU-EVAL-CALL stores the closure and
@@ -509,13 +509,15 @@ variable baku-partial-arity
 : baku-eval-protected ( node env -- value )
 	baku-eval-ir baku-tail-run ;
 
+\ BAKU-RAISED-VALUE is a single cell, so the exception value must be read before
+\ the handler expression runs: a handler that catches its own error would
+\ otherwise overwrite the value the outer handler is about to receive.
 : baku-eval-trap ( node env -- value )
 	over baku-ir-trap-expr over
 	['] baku-eval-protected catch dup if
-		>r 2drop r> >r
+		>r 2drop r> baku-exception-value >r
 		over baku-ir-trap-handler over baku-eval-ir
-		r> baku-exception-value
-		baku-nil baku-cons
+		r> baku-nil baku-cons
 		baku-apply
 		nip nip
 	else

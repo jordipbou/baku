@@ -52,6 +52,7 @@
 -265 constant baku-string-bounds-error
 -266 constant baku-vector-bounds-error
 -267 constant baku-invalid-argument
+-268 constant baku-error-expected
 
 \ Floating point is required for the kernel's float literals.  Probe it here so
 \ a target without the wordset fails loudly at load time instead of producing a
@@ -330,6 +331,32 @@ variable baku-quote-src
 	baku-quote-src @ baku-string-length cmove
 	[char] " r@ cell + 1+ baku-quote-src @ baku-string-length + c!
 	r> ;
+
+\ ---------------------------------------------------------------------------
+\ Error objects
+\
+\ The message bytes are copied into the object instead of referencing a string
+\ value.  An error can then be raised from any region, including an arena, and
+\ never holds a cross-region reference: the GC only ever sees inline bytes.
+\ ---------------------------------------------------------------------------
+
+variable baku-error-src
+variable baku-error-len
+
+: baku-error ( c-addr u -- obj )
+	dup 0 < if baku-invalid-argument throw then
+	baku-error-len ! baku-error-src !
+	baku-error-len @ baku-type-error baku-alloc
+	>r
+	baku-error-src @ r@ cell + baku-error-len @ cmove
+	r> ;
+
+: baku-error? ( x -- flag )
+	dup baku-object? if baku-object-type baku-type-error = else drop false then ;
+
+: baku-error-message ( obj -- c-addr u )
+	baku-type-error baku-error-expected baku-assert-type
+	dup cell + swap baku-object-size ;
 
 \ ---------------------------------------------------------------------------
 \ Vectors: a cell-counted payload.  Elements start zeroed so an uninitialised
