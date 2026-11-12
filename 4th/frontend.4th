@@ -240,8 +240,20 @@ defer baku-frontend
 		then
 	then ;
 
+\ A boxed float has the same lifetime hazard as a string literal: the reader
+\ allocates it in scratch, while the IR outlives the form.  Copy an
+\ arena-resident float into the selected heap; a float already in the permanent
+\ or GC heap keeps its identity.
+: baku-front-persist-float ( value -- value )
+	dup baku-float? if
+		dup baku-region-of baku-region-arena = if
+			dup baku-float@ baku-float nip
+		then
+	then ;
+
 : baku-front-atom ( value -- node )
 	baku-front-persist-string
+	baku-front-persist-float
 	dup baku-symbol? if
 		3 baku-ir-symbol false baku-ir-make
 	else
@@ -463,5 +475,16 @@ variable baku-front-special
 	then ;
 
 ' baku-frontend-real is baku-frontend
+
+\ The IR is built in the selected heap, which is the GC from-space in GC mode.
+\ These dictionary cells hold partly built IR across a recursive compilation
+\ call that can allocate, so the collector must update them when the IR moves.
+baku-call-op 1 baku-gc-root+
+baku-call-args 1 baku-gc-root+
+baku-call-node 1 baku-gc-root+
+baku-copy-list 1 baku-gc-root+
+baku-copy-node 1 baku-gc-root+
+baku-params-list 1 baku-gc-root+
+baku-params-vector 1 baku-gc-root+
 
 baku-frontend-init

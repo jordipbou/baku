@@ -639,6 +639,9 @@ variable baku-native-eval-saved-end
 	baku-nil 0 baku-native-exec baku-tail-run ;
 
 : baku-native-eval-kl ( form -- value )
+	\ GC mode stores code in the heap and runs the interpreter; compiling to
+	\ dictionary code here would put an unreclaimable object outside the GC.
+	baku-gc-active? if baku-mode-error throw then
 	baku-heap-save baku-native-eval-saved-end ! baku-native-eval-saved-here !
 	baku-ir-scratch-reset
 	baku-use-ir-scratch
@@ -649,7 +652,10 @@ variable baku-native-eval-saved-end
 
 : baku-native-install-form ( form -- ) baku-native-eval-kl drop ;
 
-\ Non-GC is the default mode, so the kernel-visible EVAL-KL compiles natively.
-\ BAKU-EVAL-KL remains the interpreter reference for tests and for a future
-\ GC-mode selector.
-' baku-native-eval-kl 1 s" eval-kl" baku-intern baku-defprim
+\ The kernel-visible EVAL-KL follows the memory state: GC mode interprets from
+\ the heap, while non-GC and arena modes compile native dictionary code.  This
+\ is the single mode selector; callers do not choose a backend directly.
+: baku-eval-kl-mode ( form -- value )
+	baku-mode baku-mode-gc = if baku-eval-kl else baku-native-eval-kl then ;
+
+' baku-eval-kl-mode 1 s" eval-kl" baku-intern baku-defprim

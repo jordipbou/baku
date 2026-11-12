@@ -140,8 +140,11 @@ variable baku-gc-scan-kind
 			loop
 		else
 			baku-gc-scan-type @ baku-type-closure = if
-				baku-gc-scan @ 1 cells + @ baku-fixnum-value
-				baku-gc-scan-kind !
+				\ The kind slot holds the raw constant, not a tagged fixnum.
+				\ Only an interpreted or partial closure's code slot is a
+				\ Baku reference (IR node or target closure); a primitive
+				\ holds an xt and a native closure a dictionary address.
+				baku-gc-scan @ 1 cells + @ baku-gc-scan-kind !
 				baku-gc-scan-kind @ baku-closure-interpreted =
 				baku-gc-scan-kind @ baku-closure-partial = or if
 					baku-gc-scan @ 3 cells + baku-gc-root-cell

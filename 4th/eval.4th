@@ -66,6 +66,11 @@
 -279 constant baku-eval-unbound
 -280 constant baku-eval-type
 
+\ An execution mode that must not be entered raises this catchable code.  It is
+\ distinct from the collector's inactive/arena/unsupported codes because the
+\ refusal belongs to the executor, not to the allocator.
+-285 constant baku-mode-error
+
 variable baku-raised-value
 
 \ Pending tail call: BAKU-TAIL-PENDING is returned instead of a value, and the
@@ -578,11 +583,32 @@ defer baku-native-run
 \ Entry points
 \ ---------------------------------------------------------------------------
 
+\ The execution mode follows the active memory region; a caller never selects a
+\ language, only a lifetime policy.  An active arena wins over an activated GC
+\ because the GC is inactive while any arena exists, and native dictionary code
+\ is the arena representation.  With neither, the non-GC mode is the default.
+0 constant baku-mode-nongc
+1 constant baku-mode-arena
+2 constant baku-mode-gc
+
+: baku-mode ( -- mode )
+	baku-arena-active? if baku-mode-arena exit then
+	baku-gc-active? if baku-mode-gc exit then
+	baku-mode-nongc ;
+
+: baku-mode-name ( mode -- c-addr u )
+	dup baku-mode-arena = if drop s" Arena" exit then
+	dup baku-mode-gc = if drop s" GC" exit then
+	baku-mode-nongc = if s" Non-GC" exit then
+	baku-invalid-argument throw ;
+
 \ BAKU-EVAL is the internal IR entry used by tests and future compiler modes.
-\ BAKU-EVAL-KL is the single Shen-visible entry point: it lowers the form through
-\ the shared front end and then evaluates the IR.  The top-level form is compiled
+\ BAKU-EVAL-KL is the interpreter reference: it lowers the form through the
+\ shared front end and then evaluates the IR.  The top-level form is compiled
 \ with the tail flag set, so a top-level tail call also goes through the
-\ trampoline instead of the Forth return stack.
+\ trampoline instead of the Forth return stack.  In GC mode the selected heap is
+\ the from-space, so this same path stores the IR and every closure in the GC
+\ and the collector moves them like any other value.
 : baku-eval ( ir -- value ) baku-nil baku-eval-ir baku-tail-run ;
 : baku-eval-kl ( form -- value ) true baku-frontend baku-eval ;
 
