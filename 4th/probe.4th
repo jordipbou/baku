@@ -159,3 +159,34 @@ here baku-probe-marker-base @ = [IF] [ELSE]
 
 1 baku-probe-marker-ok !
 ." BAKU-PROBE MARKER/DOES>  PRESENT" cr
+
+\ A live arena defines its MARKER at run time through EVALUATE: a statically
+\ named marker word can only be executed once because it removes itself, so each
+\ arena needs a freshly defined one.  4th/arena.4th depends on this, so probe the
+\ dynamic form separately from the compile-time MARKER above.
+variable baku-probe-dynamic-base
+variable baku-probe-dynamic-xt
+align here baku-probe-dynamic-base !
+
+s" MARKER baku-probe-dynamic-marker" evaluate
+s" ' baku-probe-dynamic-marker" evaluate baku-probe-dynamic-xt !
+
+: baku-probe-dynamic-temp ( -- n ) 42 ;
+
+[DEFINED] baku-probe-dynamic-marker [IF] [ELSE]
+	." BAKU-PROBE FAIL: EVALUATE did not define a MARKER" cr abort
+[THEN]
+
+baku-probe-dynamic-xt @ execute
+
+here baku-probe-dynamic-base @ = [IF] [ELSE]
+	." BAKU-PROBE FAIL: dynamic MARKER did not restore the dictionary" cr abort
+[THEN]
+[DEFINED] baku-probe-dynamic-marker [IF]
+	." BAKU-PROBE FAIL: dynamic MARKER did not remove itself" cr abort
+[THEN]
+[DEFINED] baku-probe-dynamic-temp [IF]
+	." BAKU-PROBE FAIL: dynamic MARKER left a later word" cr abort
+[THEN]
+
+." BAKU-PROBE MARKER/DYNAMIC  PRESENT" cr

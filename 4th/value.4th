@@ -53,6 +53,8 @@
 -266 constant baku-vector-bounds-error
 -267 constant baku-invalid-argument
 -268 constant baku-error-expected
+-269 constant baku-arena-full
+-270 constant baku-no-arena
 
 \ The required-wordset startup probe (4th/probe.4th) checks the Floating
 \ wordset before this file loads, so DF@/DF! are available here.
@@ -109,6 +111,13 @@ variable baku-new-kind
 		then
 	loop
 	drop 0 ;
+
+\ Regions are registered in lifetime order, so releasing the youngest one
+\ (an arena) is always a pop.  The end cell is not touched: it belongs to the
+\ released region and is no longer read.
+: baku-region-drop ( -- )
+	baku-region-count @ 0= if baku-invalid-argument throw then
+	baku-region-count @ 1- baku-region-count ! ;
 
 \ ---------------------------------------------------------------------------
 \ Tags, immediates and object classification
@@ -215,6 +224,13 @@ variable baku-heap-end
 variable baku-alloc-payload
 variable baku-alloc-type
 
+\ A dictionary arena must keep the Forth data-space pointer in step with its own
+\ bump pointer, because nested arenas and every other word definition use HERE.
+\ The arena layer binds this hook; without it the hook is a no-op.
+defer baku-alloc-sync
+: baku-alloc-sync-none ;
+' baku-alloc-sync-none is baku-alloc-sync
+
 : baku-alloc ( payload-bytes type -- obj )
 	baku-alloc-type ! baku-alloc-payload !
 	baku-alloc-payload @ baku-round-cells cell +   ( total )
@@ -228,6 +244,7 @@ variable baku-alloc-type
 	drop
 	baku-alloc-payload @ 8 lshift baku-alloc-type @ or ( header )
 	r@ !                                           ( -- | R: old )
+	baku-alloc-sync
 	r> ;                                           ( -- obj )
 
 : baku-object-total ( obj -- bytes )
