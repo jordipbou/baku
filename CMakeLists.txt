@@ -92,10 +92,15 @@ foreach(test_file IN LISTS BAKU_TESTS)
 	# Debug native execution takes about 10 minutes for SHEN.INITIALISE alone
 	# and several times that for STLIB.INITIALISE, so the acceptance test runs
 	# on gforth.  The full corpus native install still runs on Sloth in
-	# test/native.4th's code path and in the manual install experiment.
+	# test/native.4th's code path and in the manual install experiment.  The
+	# top-level test boots the same way, so it has the same exclusion.  The
+	# standard-input test reads the CTest input file and is registered below.
 	set(test_targets ${BAKU_REQUIRED_TARGETS})
-	if(test_name STREQUAL "boot-native")
+	if(test_name STREQUAL "boot-native" OR test_name STREQUAL "repl")
 		list(REMOVE_ITEM test_targets sloth)
+	endif()
+	if(test_name STREQUAL "repl-eof")
+		continue()
 	endif()
 
 	foreach(target IN LISTS test_targets)
@@ -106,7 +111,7 @@ foreach(test_file IN LISTS BAKU_TESTS)
 			set(forth_command ${GFORTH_EXECUTABLE})
 			# The native boot test reserves a 512 MiB non-GC heap, the 4 MiB IR
 			# scratch and the 2 MiB reader scratch; every other test fits 64M.
-			if(test_name STREQUAL "boot-native")
+			if(test_name STREQUAL "boot-native" OR test_name STREQUAL "repl")
 				set(forth_flags "-m 768M -d 16M -r 16M")
 			else()
 				set(forth_flags "-m 64M")
@@ -140,3 +145,16 @@ foreach(test_file IN LISTS BAKU_TESTS)
 		endif()
 	endforeach()
 endforeach()
+
+# The standard-input end test is the only test that needs an empty stdin, so it
+# is registered with the runner's INPUT_FILE instead of the glob above.  gforth
+# is the target whose KEY reports end of input (see the test file).
+add_test(NAME baku_repl-eof_gforth
+	COMMAND ${CMAKE_COMMAND}
+		-DFORTH=${GFORTH_EXECUTABLE}
+		-DFORTH_FLAGS="-m 64M"
+		-DTEST_FILE=${CMAKE_CURRENT_SOURCE_DIR}/test/repl-eof.4th
+		-DTARGET=gforth
+		-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
+		-DINPUT_FILE=${CMAKE_CURRENT_SOURCE_DIR}/test/empty.stdin
+		-P ${BAKU_RUNNER})

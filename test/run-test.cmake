@@ -20,12 +20,25 @@ else()
 	set(forth_args "")
 endif()
 
-execute_process(
-	COMMAND "${FORTH}" ${forth_args} "${TEST_FILE}"
-	WORKING_DIRECTORY "${WORKING_DIRECTORY}"
-	RESULT_VARIABLE result
-	OUTPUT_VARIABLE output
-	ERROR_VARIABLE errors)
+# INPUT_FILE replaces the standard input of the Forth process.  It exists for
+# the standard-input tests: without it a test that reads stdin would inherit
+# the CTest stdin, which is not defined by this runner.
+if(DEFINED INPUT_FILE AND NOT "${INPUT_FILE}" STREQUAL "")
+	execute_process(
+		COMMAND "${FORTH}" ${forth_args} "${TEST_FILE}"
+		WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+		INPUT_FILE "${INPUT_FILE}"
+		RESULT_VARIABLE result
+		OUTPUT_VARIABLE output
+		ERROR_VARIABLE errors)
+else()
+	execute_process(
+		COMMAND "${FORTH}" ${forth_args} "${TEST_FILE}"
+		WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+		RESULT_VARIABLE result
+		OUTPUT_VARIABLE output
+		ERROR_VARIABLE errors)
+endif()
 
 set(transcript "${output}${errors}")
 
