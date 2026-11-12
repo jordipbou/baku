@@ -6,10 +6,10 @@
 \ native execution is far too slow for the gate).
 \
 \ The checks cover the kernel-defined behaviour that Baku must not reimplement:
-\ the input+ compatibility path, zero-place fn/thaw, and the kernel vector
-\ accessors and classifiers.  They are evaluated through BAKU-EVAL-KL, the
-\ interpreter reference, which still dispatches into native kernel closures
-\ after a native boot.
+\ the input+ compatibility path, zero-place fn/thaw, the kernel vector
+\ accessors and classifiers, and the kernel writer's reader round-trip.  They
+\ are evaluated through BAKU-EVAL-KL, the interpreter reference, which still
+\ dispatches into native kernel closures after a native boot.
 
 [DEFINED] gforth
 [IF]
@@ -146,5 +146,141 @@ s" (boolean? 0)" ev baku-false = 34 check
 s" (vector? (vector 2))" ev baku-true = 35 check
 s" (vector? 3)" ev baku-false = 36 check
 s" (vector? (cons 1 2))" ev baku-false = 37 check
+
+\ ---------------------------------------------------------------------------
+\ Writer round-trip.  A form read by the shipped KLambda reader is printed by
+\ the kernel writer, emitted through PR to a byte stream, read back from the
+\ file, and re-read; the second form must equal the first.  SHEN.APP with mode
+\ SHEN.R is the writer's value-to-text stage and produces a parenthesised form;
+\ PR is the stream emitter.  The cases cover punctuation symbols, an embedded
+\ newline string, a literal backslash string and the real literal-backslash
+\ defun lines in the pinned stlib.kl corpus.
+\ ---------------------------------------------------------------------------
+
+create test-writer-buf 8192 allot
+create test-writer-line-buf 4096 allot
+variable test-writer-fileid
+variable test-writer-scan-fileid
+variable test-writer-found
+
+: test-writer-set ( value c-addr u -- )
+	baku-intern swap baku-global-define drop ;
+
+: test-writer-get ( c-addr u -- value )
+	baku-intern baku-global-lookup drop ;
+
+\ Copy a reader form out of the reader scratch block into the non-GC heap, so
+\ the form survives the reads that follow it.
+: test-copy-form ( v -- v' )
+	dup baku-fixnum? if exit then
+	dup baku-nil = if exit then
+	dup baku-true = if exit then
+	dup baku-false = if exit then
+	dup baku-symbol? if exit then
+	dup baku-string? if
+		dup baku-string-addr swap baku-string-length baku-string exit
+	then
+	dup baku-float? if baku-float@ baku-float exit then
+	dup baku-cons? if
+		dup baku-hd recurse
+		swap baku-tl recurse
+		baku-cons exit
+	then
+	." BAKU-TEST-FAIL: writer form has an unsupported value" cr abort ;
+
+: test-writer-read ( c-addr u -- form )
+	baku-read-string
+	baku-read-form 0= if
+		." BAKU-TEST-FAIL: writer reader refused a form" cr abort
+	then
+	test-copy-form ;
+
+: test-writer-format ( -- str )
+	s" (shen.app (value baku.kernel.writer-form) (tlstr (str 0)) shen.r)"
+		ev ;
+
+: test-writer-read-file ( -- str )
+	s" baku-writer.tmp" r/o bin open-file throw test-writer-fileid !
+	test-writer-buf 8192 test-writer-fileid @ read-file throw
+	test-writer-fileid @ close-file throw
+	test-writer-buf swap baku-string ;
+
+\ Read a source form with the shipped KLambda reader, print it with the kernel
+\ writer, emit the text through PR to a byte stream, read the bytes back and
+\ re-read them; the second form must equal the first.
+: test-writer-roundtrip ( c-addr u -- flag )
+	test-writer-read s" baku.kernel.writer-form" test-writer-set
+	test-writer-format s" baku.kernel.writer-text" test-writer-set
+	s" baku-writer.tmp" baku-string s" out" baku-intern baku-prim-open
+		s" baku.kernel.writer-stream" test-writer-set
+	s" (pr (value baku.kernel.writer-text) (value baku.kernel.writer-stream))"
+		ev drop
+	s" baku.kernel.writer-stream" test-writer-get baku-prim-close drop
+	test-writer-read-file
+	dup baku-string-addr swap baku-string-length
+	test-writer-read
+	s" baku.kernel.writer-form" test-writer-get
+	baku-eq? ;
+
+: test-has-backslash? ( c-addr u -- flag )
+	begin dup 0> while
+		over c@ 92 = if 2drop true exit then
+		1- swap char+ swap
+	repeat 2drop false ;
+
+: test-defun-line? ( c-addr u -- flag )
+	dup 7 >= if
+		over 7 s" (defun " compare 0= -rot 2drop
+	else
+		2drop false
+	then ;
+
+s" (a-b? c_d e:f g;h i<j k=l)" test-writer-roundtrip 38 check
+
+create test-writer-newline
+	40 c, 102 c, 111 c, 111 c, 32 c, 34 c, 108 c, 105 c, 110 c, 101 c, 49 c,
+	10 c, 108 c, 105 c, 110 c, 101 c, 50 c, 34 c, 41 c,
+test-writer-newline 19 test-writer-roundtrip 39 check
+
+create test-writer-backslash
+	40 c, 102 c, 111 c, 111 c, 32 c, 34 c, 92 c, 34 c, 41 c,
+test-writer-backslash 9 test-writer-roundtrip 40 check
+
+\ The pinned stlib.kl has eight one-character backslash strings, two on each of
+\ four single-line defuns.  Round-trip every such defun line; stop before the
+\ 74 KiB source-data line, which is not a form on its own.
+: test-writer-corpus-backslash ( -- )
+	0 test-writer-found !
+	s" vendor/shen-43.2/klambda/stlib.kl" r/o bin open-file throw
+		test-writer-scan-fileid !
+	begin
+		test-writer-line-buf 4096 test-writer-scan-fileid @ read-line throw
+		dup 0= if
+			2drop
+			test-writer-scan-fileid @ close-file throw
+			test-writer-found @ 4 = if exit then
+			." BAKU-TEST-FAIL: missing literal-backslash defun line" cr
+			abort
+		then
+		drop test-writer-line-buf swap
+		2dup test-has-backslash? >r
+		2dup test-defun-line? r> and if
+			test-writer-roundtrip if
+				1 test-writer-found +!
+			else
+				." BAKU-TEST-FAIL: corpus writer round-trip " cr
+				abort
+			then
+		else
+			2drop
+		then
+		test-writer-found @ 4 >= if
+			test-writer-scan-fileid @ close-file throw exit
+		then
+	again ;
+
+test-writer-corpus-backslash
+s" baku-writer.tmp" delete-file 0= 41 check
+test-writer-found @ 4 = 42 check
 
 ." BAKU-TEST-DONE" cr
