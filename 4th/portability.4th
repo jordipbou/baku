@@ -23,3 +23,13 @@
 	variable baku-nongc-request
 	524288 baku-nongc-request !
 [THEN]
+
+\ The native backend lowers one top-level form at a time into a scratch block
+\ and discards the IR after compiling it to dictionary code.  The default holds
+\ the largest pinned kernel form with headroom; a native boot test may raise it
+\ before including the tree.  The interpreter backend does not use this block:
+\ it keeps IR as closure code in the non-GC heap.
+[DEFINED] baku-ir-scratch-request [IF] [ELSE]
+	variable baku-ir-scratch-request
+	4194304 baku-ir-scratch-request !
+[THEN]

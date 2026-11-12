@@ -141,7 +141,7 @@ variable baku-native-size-total
 		dup baku-ir-cond-clauses baku-native-cond-size nip exit
 	then
 	dup baku-ir-let = if drop
-		dup baku-ir-let-expr baku-native-size 4 + nip exit
+		dup baku-ir-let-expr baku-native-size 3 + nip exit
 	then
 	dup baku-ir-lambda = if drop drop 2 exit then
 	dup baku-ir-defun = if drop drop 3 exit then
@@ -339,11 +339,31 @@ variable baku-cond-next
 	>r >r baku-native-op-trap baku-native-put
 	r> baku-native-put r> baku-native-put drop ;
 
+\ A dictionary code block holds raw addresses, so a heap-object literal (a
+\ string or a boxed float) must live in the permanent non-GC heap, not in the
+\ disposable IR scratch.  Symbols are already permanent and immediates need no
+\ storage.  Copy each literal once at emission time.
+: baku-native-literal ( x -- x' )
+	dup baku-string? if
+		baku-heap-save >r >r
+		dup baku-string-addr swap baku-string-length
+		baku-use-nongc
+		baku-string
+		r> r> baku-heap-restore exit
+	then
+	dup baku-float? if
+		baku-heap-save >r >r
+		cell + df@
+		baku-use-nongc
+		baku-float
+		r> r> baku-heap-restore exit
+	then ;
+
 : baku-native-emit-real ( ir -- )
 	dup baku-ir-kind
 	dup baku-ir-atom = if
 		drop baku-native-op-lit baku-native-put
-		dup baku-ir-value baku-native-put drop exit
+		dup baku-ir-value baku-native-literal baku-native-put drop exit
 	then
 	dup baku-ir-symbol = if
 		drop baku-native-op-sym baku-native-put
@@ -467,7 +487,16 @@ variable baku-native-trap-env
 	baku-native-trap-prot @ baku-native-trap-env @ 0 baku-native-exec
 	baku-tail-run ;
 
+\ The enclosing continuation and the previous trap cells live on the return
+\ stack, not in variables: a trap-error inside the protected form (for example
+\ the one SHEN.ATOM->STR uses around STR) must not clobber the outer trap's
+\ saved state.  CATCH restores the return stack to the depth at its call, so
+\ these six cells survive a throw.  On the error path the previous trap cells
+\ are restored before the handler runs and the continuation after it.
 : baku-native-trap-run ( prot handler env -- value )
+	baku-native-ip @ >r
+	baku-native-env @ >r
+	baku-native-self-code @ >r
 	baku-native-trap-prot @ >r
 	baku-native-trap-handler @ >r
 	baku-native-trap-env @ >r
@@ -486,7 +515,10 @@ variable baku-native-trap-env
 		r> baku-native-trap-env !
 		r> baku-native-trap-handler !
 		r> baku-native-trap-prot !
-	then ;
+	then
+	r> baku-native-self-code !
+	r> baku-native-env !
+	r> baku-native-ip ! ;
 
 : baku-native-trap ( -- )
 	baku-fetch baku-fetch
@@ -592,7 +624,32 @@ variable baku-native-run-args
 : baku-native-eval ( ir -- value )
 	baku-native-compile-expr baku-nil 0 baku-native-exec baku-tail-run ;
 
+\ One form at a time: lower it into the IR scratch, compile the resulting IR to
+\ dictionary code, then return to the permanent heap for execution.  The IR is
+\ dead once compilation finishes, so the scratch is reset even when lowering,
+\ compilation or execution throws.  A nested EVAL-KL during execution resets the
+\ scratch too; the outer IR is already compiled, so that is safe.
+variable baku-native-eval-saved-here
+variable baku-native-eval-saved-end
+
+: baku-native-eval-scratch ( form -- value )
+	true baku-frontend
+	baku-native-compile-expr
+	baku-native-eval-saved-here @ baku-native-eval-saved-end @ baku-heap-restore
+	baku-nil 0 baku-native-exec baku-tail-run ;
+
 : baku-native-eval-kl ( form -- value )
-	true baku-frontend baku-native-eval ;
+	baku-heap-save baku-native-eval-saved-end ! baku-native-eval-saved-here !
+	baku-ir-scratch-reset
+	baku-use-ir-scratch
+	['] baku-native-eval-scratch catch
+	baku-native-eval-saved-here @ baku-native-eval-saved-end @ baku-heap-restore
+	baku-ir-scratch-reset
+	?dup if swap drop throw then ;
 
 : baku-native-install-form ( form -- ) baku-native-eval-kl drop ;
+
+\ Non-GC is the default mode, so the kernel-visible EVAL-KL compiles natively.
+\ BAKU-EVAL-KL remains the interpreter reference for tests and for a future
+\ GC-mode selector.
+' baku-native-eval-kl 1 s" eval-kl" baku-intern baku-defprim

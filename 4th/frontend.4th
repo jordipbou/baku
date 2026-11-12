@@ -77,7 +77,31 @@ variable baku-sym-defun
 variable baku-sym-freeze
 variable baku-sym-trap-error
 
+\ Native IR scratch.  The native backend lowers one form at a time and frees
+\ the IR after compiling it; the interpreter keeps IR as closure code and never
+\ selects this block.  It is a fixed dictionary region registered with the
+\ internal arena kind, like the reader scratch.
+baku-ir-scratch-request @ constant baku-ir-scratch-size
+
+align create baku-ir-scratch baku-ir-scratch-size allot align
+
+variable baku-ir-scratch-here
+variable baku-ir-scratch-end
+
+: baku-use-ir-scratch ( -- )
+	baku-ir-scratch-here baku-ir-scratch-end baku-use-heap ;
+
+: baku-ir-scratch-reset ( -- )
+	baku-ir-scratch baku-ir-scratch-here ! ;
+
+: baku-ir-scratch-init ( -- )
+	baku-ir-scratch baku-ir-scratch-here !
+	baku-ir-scratch baku-ir-scratch-size + baku-ir-scratch-end !
+	baku-ir-scratch baku-ir-scratch-here baku-region-arena baku-region+ drop
+	baku-use-nongc ;
+
 : baku-frontend-init ( -- )
+	baku-ir-scratch-init
 	s" if" baku-intern baku-sym-if !
 	s" and" baku-intern baku-sym-and !
 	s" or" baku-intern baku-sym-or !

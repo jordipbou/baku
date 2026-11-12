@@ -15,11 +15,12 @@ endif()
 
 include(FetchContent)
 # The pinned corpus contains one form with about 45k cons cells, and Sloth's
-# default stack and dictionary are too small for the reader tests.  The boot
-# test also raises the non-GC heap request to 16 MiB before loading the tree, so
-# the dictionary must hold that block plus the 2 MiB reader scratch block.
-# These are test-platform limits; the default Baku sources reserve only 512 KiB.
-set(SLOTH_DICTIONARY_SIZE 33554432 CACHE STRING
+# default stack and dictionary are too small for the reader tests.  The loader
+# test raises the non-GC heap request to 16 MiB.  The native boot test requests
+# 512 MiB because non-GC initialisation keeps every allocation, plus the 4 MiB
+# IR scratch and the 2 MiB reader scratch.  These are test-platform limits; the
+# default Baku sources reserve only 512 KiB.
+set(SLOTH_DICTIONARY_SIZE 671088640 CACHE STRING
 	"Sloth dictionary size for the Baku test platform" FORCE)
 add_compile_definitions(SLOTH_STACK_SIZE=16384 SLOTH_RETURN_STACK_SIZE=16384)
 FetchContent_Declare(
@@ -87,15 +88,29 @@ file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
 
-	foreach(target IN LISTS BAKU_REQUIRED_TARGETS)
+	# The native boot acceptance test initialises the whole kernel.  Sloth's
+	# Debug native execution takes about 10 minutes for SHEN.INITIALISE alone
+	# and several times that for STLIB.INITIALISE, so the acceptance test runs
+	# on gforth.  The full corpus native install still runs on Sloth in
+	# test/native.4th's code path and in the manual install experiment.
+	set(test_targets ${BAKU_REQUIRED_TARGETS})
+	if(test_name STREQUAL "boot-native")
+		list(REMOVE_ITEM test_targets sloth)
+	endif()
+
+	foreach(target IN LISTS test_targets)
 		if(target STREQUAL "sloth")
 			set(forth_command $<TARGET_FILE:sloth>)
 			set(forth_flags "")
 		elseif(target STREQUAL "gforth")
 			set(forth_command ${GFORTH_EXECUTABLE})
-			# The boot test reserves a 16 MiB non-GC heap plus the 2 MiB reader
-			# scratch block; gforth's default dictionary is smaller.
-			set(forth_flags "-m 64M")
+			# The native boot test reserves a 512 MiB non-GC heap, the 4 MiB IR
+			# scratch and the 2 MiB reader scratch; every other test fits 64M.
+			if(test_name STREQUAL "boot-native")
+				set(forth_flags "-m 768M -d 16M -r 16M")
+			else()
+				set(forth_flags "-m 64M")
+			endif()
 		else()
 			message(FATAL_ERROR "Unknown Baku test target '${target}'")
 		endif()
