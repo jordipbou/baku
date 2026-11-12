@@ -104,8 +104,10 @@ add_test(NAME baku_tests_digest_tamper
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/kernel-digest-selftest.cmake)
 
 file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
-# These tests initialise the whole kernel natively; see the exclusions below.
-set(BAKU_NATIVE_BOOT_TESTS boot-native kernel repl)
+# These tests initialise the whole kernel and/or need GC stack roots; see the
+# exclusions below.  kernel-suite boots under the collector, which Sloth cannot
+# activate, so it is a gforth-only long test.
+set(BAKU_NATIVE_BOOT_TESTS boot-native kernel repl kernel-suite)
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
 
@@ -114,7 +116,9 @@ foreach(test_file IN LISTS BAKU_TESTS)
 	# for SHEN.INITIALISE alone and several times that for STLIB.INITIALISE, so
 	# those tests run on gforth.  The full corpus native install still runs on
 	# Sloth in test/native.4th's code path and in the manual install experiment.
-	# The standard-input test reads the CTest input file and is registered below.
+	# kernel-suite needs the Cheney collector, whose stack roots only gforth
+	# exposes.  The standard-input test reads the CTest input file and is
+	# registered below.
 	set(test_targets ${BAKU_REQUIRED_TARGETS})
 	if(test_name IN_LIST BAKU_NATIVE_BOOT_TESTS)
 		list(REMOVE_ITEM test_targets sloth)
@@ -150,6 +154,15 @@ foreach(test_file IN LISTS BAKU_TESTS)
 				-DTARGET=${target}
 				-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
 				-P ${BAKU_RUNNER})
+
+		# The Shen kernel suite is a conformance measurement, not a fast
+		# regression test: type checking under the GC interpreter takes a long
+		# time.  Label it long so the default target run excludes it and give it
+		# a generous timeout; run-tests.sh --kernel-suite runs it explicitly.
+		if(test_name STREQUAL "kernel-suite")
+			set_tests_properties(baku_${test_name}_${target}
+				PROPERTIES LABELS long TIMEOUT 14400)
+		endif()
 
 		# The startup probe report is checked line by line as well: every
 		# required wordset must print PRESENT, never only the test marker.

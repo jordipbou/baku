@@ -8,6 +8,19 @@
 
 set -u
 
+# The Shen kernel conformance suite is long (the GC interpreter runs the whole
+# 43.2 test tree), so it is opt-in.  The default run excludes every test labelled
+# `long`; `--kernel-suite` runs only that label.
+mode=${1:-}
+case "$mode" in
+	"" ) ;;
+	--kernel-suite ) ;;
+	* )
+		echo "usage: $0 [--kernel-suite]" >&2
+		exit 2
+		;;
+esac
+
 here=$(cd "$(dirname "$0")" && pwd)
 cd "$here"
 
@@ -32,6 +45,22 @@ if [ ! -f "$targets_file" ]; then
 	targets=""
 else
 	targets=$(cat "$targets_file")
+fi
+
+# The kernel suite is gforth-only and does not need the Sloth executable, so
+# skip the build and the fast gates in this mode.
+if [ "$mode" = "--kernel-suite" ]; then
+	if [ "$fail" -ne 0 ]; then
+		echo "BAKU-KERNEL-SUITE FAIL" >&2
+		exit 1
+	fi
+	if ctest --test-dir build -C Debug -L long --output-on-failure; then
+		echo "BAKU-KERNEL-SUITE PASS"
+	else
+		echo "BAKU-KERNEL-SUITE FAIL" >&2
+		exit 1
+	fi
+	exit 0
 fi
 
 if [ "$fail" -eq 0 ]; then
@@ -100,7 +129,7 @@ for target in $targets; do
 		continue
 	fi
 
-	count=$(ctest --test-dir build -C Debug -N -R "^baku_.*_${target}\$" |
+	count=$(ctest --test-dir build -C Debug -LE long -N -R "^baku_.*_${target}\$" |
 		sed -n 's/^Total Tests: //p')
 	if [ -z "$count" ] || [ "$count" -eq 0 ]; then
 		echo "BAKU-TARGET $target NOT RUN: no registered tests" >&2
@@ -108,7 +137,7 @@ for target in $targets; do
 		continue
 	fi
 
-	if ctest --test-dir build -C Debug -R "^baku_.*_${target}\$" \
+	if ctest --test-dir build -C Debug -LE long -R "^baku_.*_${target}\$" \
 		--output-on-failure; then
 		echo "BAKU-TARGET $target PASS ($count tests)"
 	else
