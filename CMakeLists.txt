@@ -85,18 +85,19 @@ add_test(NAME baku_kernel_digest_tamper
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/kernel-digest-selftest.cmake)
 
 file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
+# These tests initialise the whole kernel natively; see the exclusions below.
+set(BAKU_NATIVE_BOOT_TESTS boot-native kernel repl)
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
 
-	# The native boot acceptance test initialises the whole kernel.  Sloth's
-	# Debug native execution takes about 10 minutes for SHEN.INITIALISE alone
-	# and several times that for STLIB.INITIALISE, so the acceptance test runs
-	# on gforth.  The full corpus native install still runs on Sloth in
-	# test/native.4th's code path and in the manual install experiment.  The
-	# top-level test boots the same way, so it has the same exclusion.  The
-	# standard-input test reads the CTest input file and is registered below.
+	# The native boot acceptance tests (boot-native, kernel, repl) initialise
+	# the whole kernel.  Sloth's Debug native execution takes about 10 minutes
+	# for SHEN.INITIALISE alone and several times that for STLIB.INITIALISE, so
+	# those tests run on gforth.  The full corpus native install still runs on
+	# Sloth in test/native.4th's code path and in the manual install experiment.
+	# The standard-input test reads the CTest input file and is registered below.
 	set(test_targets ${BAKU_REQUIRED_TARGETS})
-	if(test_name STREQUAL "boot-native" OR test_name STREQUAL "repl")
+	if(test_name IN_LIST BAKU_NATIVE_BOOT_TESTS)
 		list(REMOVE_ITEM test_targets sloth)
 	endif()
 	if(test_name STREQUAL "repl-eof")
@@ -111,7 +112,7 @@ foreach(test_file IN LISTS BAKU_TESTS)
 			set(forth_command ${GFORTH_EXECUTABLE})
 			# The native boot test reserves a 512 MiB non-GC heap, the 4 MiB IR
 			# scratch and the 2 MiB reader scratch; every other test fits 64M.
-			if(test_name STREQUAL "boot-native" OR test_name STREQUAL "repl")
+			if(test_name IN_LIST BAKU_NATIVE_BOOT_TESTS)
 				set(forth_flags "-m 768M -d 16M -r 16M")
 			else()
 				set(forth_flags "-m 64M")
