@@ -205,18 +205,29 @@ create baku-global-buckets baku-symbol-buckets-count cells allot
 : baku-global-lookup ( sym -- value flag )
 	baku-global-pair if baku-tl true else baku-nil false then ;
 
+: baku-global-prepend ( sym value -- value )
+	dup >r
+	over baku-global-bucket >r
+	baku-cons
+	r@ @ baku-cons
+	r> !
+	r> ;
+
 : baku-global-define ( sym value -- value )
-	over baku-global-pair if
-		>r swap drop
-		r@ baku-set-tl
-		r> baku-tl
+	\ Inside an arena the entry lives in the selected heap, so an in-place
+	\ update of a pre-arena binding would leave it pointing at released memory
+	\ after the MARKER runs.  Prepending keeps the old binding intact for the
+	\ arena's table snapshot to restore.
+	baku-arena-active? if
+		baku-global-prepend
 	else
-		dup >r
-		over baku-global-bucket >r
-		baku-cons
-		r@ @ baku-cons
-		r> !
-		r>
+		over baku-global-pair if
+			>r swap drop
+			r@ baku-set-tl
+			r> baku-tl
+		else
+			baku-global-prepend
+		then
 	then ;
 
 : baku-prim-set ( sym value -- value )
@@ -226,6 +237,39 @@ create baku-global-buckets baku-symbol-buckets-count cells allot
 : baku-prim-value ( sym -- value )
 	dup baku-symbol? 0= if baku-eval-type throw then
 	baku-global-lookup if else drop baku-eval-unbound throw then ;
+
+\ ---------------------------------------------------------------------------
+\ Arena table snapshots
+\
+\ The bucket arrays themselves are dictionary memory and survive an arena, but
+\ their chains point at entries allocated in the arena's selected heap.  Snapshot
+\ the arrays into the arena at creation and copy them back before the MARKER
+\ runs.  The snapshot bytes are reserved through BAKU-DICT-RESERVE, so they are
+\ part of the same arena and are reclaimed with it.
+\ ---------------------------------------------------------------------------
+
+: baku-arena-snapshot ( src slot -- )
+	baku-symbol-buckets-count cells baku-dict-reserve
+	>r swap r@ baku-symbol-buckets-count cells move
+	r> swap ! ;
+
+: baku-arena-restore-snapshot ( dst slot -- )
+	@ swap baku-symbol-buckets-count cells move ;
+
+: baku-arena-save-tables-real ( -- )
+	baku-fn-buckets baku-arena-depth @ 1- cells baku-arena-fn-snaps +
+	baku-arena-snapshot
+	baku-global-buckets baku-arena-depth @ 1- cells baku-arena-global-snaps +
+	baku-arena-snapshot ;
+
+: baku-arena-restore-tables-real ( -- )
+	baku-fn-buckets baku-arena-depth @ 1- cells baku-arena-fn-snaps +
+	baku-arena-restore-snapshot
+	baku-global-buckets baku-arena-depth @ 1- cells baku-arena-global-snaps +
+	baku-arena-restore-snapshot ;
+
+' baku-arena-save-tables-real is baku-arena-save-tables
+' baku-arena-restore-tables-real is baku-arena-restore-tables
 
 \ ---------------------------------------------------------------------------
 \ Environments

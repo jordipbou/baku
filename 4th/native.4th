@@ -30,8 +30,9 @@
 \ non-local exits.  LAMBDA, DEFUN, FREEZE and TRAP-ERROR also own child blocks.
 \
 \ Dictionary code is allocated by moving HERE with ALLOT.  UNUSED is checked
-\ before every reservation so exhaustion is a catchable error.  There is no
-\ deallocator yet: MARKER-based arena release belongs to M8.
+\ before every reservation so exhaustion is a catchable error.  The arena layer
+\ binds BAKU-DICT-RESERVE so a reservation made while an arena is active also
+\ advances that arena's bump pointer; the MARKER then reclaims the code.
 
 \ ---------------------------------------------------------------------------
 \ Instruction set.  An operand cell follows every opcode that needs one.
@@ -159,7 +160,7 @@ variable baku-native-size-total
 	align
 	dup cells unused u> if baku-out-of-memory throw then
 	dup baku-native-code-cells +!
-	here swap cells allot ;
+	cells baku-dict-reserve ;
 
 \ ---------------------------------------------------------------------------
 \ Emission.  BAKU-NATIVE-EMIT-ADDR is a single forward cursor, so recursive

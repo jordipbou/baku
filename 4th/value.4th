@@ -250,6 +250,15 @@ defer baku-alloc-sync
 : baku-alloc-sync-none ;
 ' baku-alloc-sync-none is baku-alloc-sync
 
+\ Raw dictionary reservations (native code blocks and table snapshots) move
+\ HERE without allocating a Baku object, so the bump-heap hook above never sees
+\ them.  The arena layer binds this second hook to advance its own bump pointer
+\ by the same amount; without it the next arena allocation would rewind HERE
+\ over the generated code or snapshot.
+defer baku-dict-reserve
+: baku-dict-reserve-default ( bytes -- addr ) here swap allot ;
+' baku-dict-reserve-default is baku-dict-reserve
+
 \ Called when the selected heap cannot satisfy a request.  The GC binds this to
 \ collect and retry when the selected heap is its from-space; a non-GC or arena
 \ heap keeps the default and raises the catchable out-of-memory code.
