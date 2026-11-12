@@ -28,7 +28,8 @@
 \   open close read-byte write-byte read-unit-string write-string char-stream?
 \              a stream is a stream object holding a mode and a Forth fileid;
 \              files are byte streams, the standard streams are character
-\              streams; read-byte returns -1 at end of file
+\              streams; read-byte returns -1 at end of file; a relative file
+\              name is resolved against *HOME-DIRECTORY* so CD and LOAD agree
 \
 \ The current target has 64-bit cells and no boxed integers (M0).  A fixnum
 \ arithmetic result outside the fixnum range is therefore a catchable
@@ -586,6 +587,41 @@ variable baku-io-name
 variable baku-io-dir
 create baku-io-byte-buffer 1 allot
 
+\ Shen opens every file relative to *HOME-DIRECTORY*, which CD changes.  A
+\ relative name is prefixed with that value; an absolute name and an empty or
+\ missing home are used unchanged.  The resolved name lives in a fixed buffer
+\ because OPEN copies it immediately and no Baku heap object is needed.
+4096 constant baku-open-path-max
+create baku-open-path-buf baku-open-path-max allot
+variable baku-open-name-addr
+variable baku-open-name-len
+variable baku-open-home
+
+: baku-open-path ( c-addr u -- c-addr' u' )
+	dup 0= if exit then
+	over c@ [char] / = if exit then
+	s" *home-directory*" baku-intern baku-global-lookup 0= if drop exit then
+	dup baku-string? 0= if drop exit then
+	dup baku-string-length 0= if drop exit then
+	baku-open-home !
+	baku-open-name-len ! baku-open-name-addr !
+	baku-open-home @ baku-string-length baku-open-name-len @ +
+		baku-open-path-max > if
+		baku-open-name-addr @ baku-open-name-len @ exit
+	then
+	baku-open-home @ baku-string-addr
+	baku-open-home @ baku-string-length baku-open-path-buf swap cmove
+	baku-open-name-addr @
+	baku-open-path-buf baku-open-home @ baku-string-length +
+	baku-open-name-len @ cmove
+	baku-open-path-buf
+	baku-open-home @ baku-string-length baku-open-name-len @ + ;
+
+: baku-io-path ( -- c-addr u )
+	baku-io-name @ baku-string-addr
+	baku-io-name @ baku-string-length
+	baku-open-path ;
+
 \ Fileid and IOR are on the stack; a non-zero IOR discards both and throws.
 : baku-stream-from-file ( fileid ior -- obj )
 	dup 0<> if 2drop baku-file-error throw then
@@ -596,16 +632,12 @@ create baku-io-byte-buffer 1 allot
 	baku-io-name @ baku-string? 0= if baku-eval-type throw then
 	baku-io-dir @ baku-symbol? 0= if baku-eval-type throw then
 	baku-io-dir @ s" in" baku-symbol-text= if
-		baku-io-name @ baku-string-addr
-		baku-io-name @ baku-string-length
-		r/o bin open-file baku-stream-from-file exit
+		baku-io-path r/o bin open-file baku-stream-from-file exit
 	then
 	baku-io-dir @ s" out" baku-symbol-text= 0= if
 		baku-invalid-argument throw
 	then
-	baku-io-name @ baku-string-addr
-	baku-io-name @ baku-string-length
-	w/o bin create-file baku-stream-from-file ;
+	baku-io-path w/o bin create-file baku-stream-from-file ;
 
 : baku-prim-close ( obj -- obj )
 	dup baku-stream? 0= if baku-eval-type throw then

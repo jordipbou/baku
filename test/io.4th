@@ -137,6 +137,34 @@ s" (let S (open (cn (str baku-io) (str .tmp)) out) (let C (char-stream? S) (let 
 s" (trap-error (open (str baku-io-missing) in) (lambda E 99))" run
 	baku-fixnum-value 99 = 31 check
 
+\ ---------------------------------------------------------------------------
+\ Relative names resolve against *HOME-DIRECTORY*, which the kernel CD sets.
+\ The kernel LOAD depends on this: the official suite loads its own files by a
+\ bare name after CD.  A read and a create both use the same resolution.
+\ ---------------------------------------------------------------------------
+
+s" *home-directory*" baku-intern s" test/fixtures/" baku-string
+	baku-global-define drop
+s" forms.kl" baku-string dir-in baku-prim-open in-stream !
+in-stream @ baku-prim-read-byte baku-fixnum-value 40 = 32 check
+in-stream @ baku-prim-close drop
+
+s" *home-directory*" baku-intern s" test/" baku-string
+	baku-global-define drop
+s" baku-io-home.tmp" baku-string dir-out baku-prim-open
+	dup baku-stream? 33 check out-stream !
+67 baku-fixnum out-stream @ baku-prim-write-byte drop
+out-stream @ baku-prim-close drop
+s" baku-io-home.tmp" baku-string dir-in baku-prim-open in-stream !
+in-stream @ baku-prim-read-byte baku-fixnum-value 67 = 34 check
+in-stream @ baku-prim-close drop
+s" test/baku-io-home.tmp" delete-file drop
+
+s" *home-directory*" baku-intern s" " baku-string baku-global-define drop
+s" baku-io-test.bin" baku-string dir-in baku-prim-open in-stream !
+in-stream @ baku-prim-read-byte baku-fixnum-value 65 = 35 check
+in-stream @ baku-prim-close drop
+
 s" baku-io-test.bin" delete-file drop
 s" baku-io.tmp" delete-file drop
 
