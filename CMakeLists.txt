@@ -166,6 +166,21 @@ foreach(test_file IN LISTS BAKU_TESTS)
 	endforeach()
 endforeach()
 
+# Cross-target differential: the same fixture must emit the same marked lines on
+# both targets.  The fixture is registered as a normal target test by the glob
+# above; this host-side check compares the two transcripts.  Only BAKU-DIFF lines
+# are compared, so launcher banners and target-specific warnings are normalised
+# away without weakening the exit-status and marker requirements.
+add_test(NAME baku_differential_targets
+	COMMAND ${CMAKE_COMMAND}
+		-DSLOTH=$<TARGET_FILE:sloth>
+		-DGFORTH=${GFORTH_EXECUTABLE}
+		"-DGFORTH_FLAGS=-m 64M"
+		-DTEST_FILE=${CMAKE_CURRENT_SOURCE_DIR}/test/differential.4th
+		-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/differential-targets.cmake)
+
 # The standard-input end test is the only test that needs an empty stdin, so it
 # is registered with the runner's INPUT_FILE instead of the glob above.  gforth
 # is the target whose KEY reports end of input (see the test file).

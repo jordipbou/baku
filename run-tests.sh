@@ -82,6 +82,18 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Cross-target differential: the same fixed program must emit identical marked
+# lines on Sloth and gforth.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_differential_targets$' \
+		--output-on-failure; then
+		echo "BAKU-DIFFERENTIAL PASS"
+	else
+		echo "BAKU-DIFFERENTIAL FAIL" >&2
+		fail=1
+	fi
+fi
+
 for target in $targets; do
 	if [ "$fail" -ne 0 ]; then
 		echo "BAKU-TARGET $target NOT RUN"
