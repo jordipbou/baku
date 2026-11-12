@@ -1,50 +1,71 @@
-# Proves that the tree-digest check rejects a modified .kl file.
+# Proves that a tree-digest check rejects a modified file.
 #
 # The real vendor tree is never touched: it is copied to the build directory,
-# one .kl file is modified there, and the verifier must fail against the
-# recorded digest.
+# one file is modified there, and the verifier must fail against the recorded
+# digest.
+#
+# The tree, provenance file, work directory name and victim glob default to the
+# KLambda kernel so the existing registration keeps working.  The Shen test
+# suite passes its own values.
 
 cmake_minimum_required(VERSION 3.17)
 include("${CMAKE_CURRENT_LIST_DIR}/../tools/kernel-digest.cmake")
 
 get_filename_component(repo_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
-set(source_tree "${repo_root}/vendor/shen-43.2/klambda")
-set(readme "${repo_root}/vendor/shen-43.2/README.md")
+
+if(NOT DEFINED SOURCE_TREE)
+	set(SOURCE_TREE "${repo_root}/vendor/shen-43.2/klambda")
+endif()
+if(NOT DEFINED EXPECTED_FILE)
+	set(EXPECTED_FILE "${repo_root}/vendor/shen-43.2/README.md")
+endif()
+if(NOT DEFINED WORK_NAME)
+	set(WORK_NAME "kernel-digest-selftest")
+endif()
+if(NOT DEFINED VICTIM_GLOB)
+	set(VICTIM_GLOB "*.kl")
+endif()
+if(NOT DEFINED LABEL)
+	set(LABEL "BAKU-KERNEL-DIGEST")
+endif()
 
 if(NOT DEFINED BINARY_DIR)
 	set(BINARY_DIR "${repo_root}/build")
 endif()
 
-baku_kernel_expected_digest("${readme}" expected)
-baku_kernel_digest("${source_tree}" pristine)
+baku_kernel_expected_digest("${EXPECTED_FILE}" expected)
+baku_kernel_digest("${SOURCE_TREE}" pristine)
 
-set(work "${BINARY_DIR}/kernel-digest-selftest")
+get_filename_component(source_name "${SOURCE_TREE}" NAME)
+set(work "${BINARY_DIR}/${WORK_NAME}")
 file(REMOVE_RECURSE "${work}")
 file(MAKE_DIRECTORY "${work}")
-file(COPY "${source_tree}" DESTINATION "${work}")
-set(copy "${work}/klambda")
+file(COPY "${SOURCE_TREE}" DESTINATION "${work}")
+set(copy "${work}/${source_name}")
 
-file(GLOB_RECURSE kl_files LIST_DIRECTORIES false RELATIVE "${copy}"
-	"${copy}/*.kl")
-list(SORT kl_files)
-list(LENGTH kl_files count)
+file(GLOB_RECURSE victims LIST_DIRECTORIES false RELATIVE "${copy}"
+	"${copy}/${VICTIM_GLOB}")
+list(SORT victims)
+list(LENGTH victims count)
 if(count EQUAL 0)
-	message(FATAL_ERROR "kernel digest selftest: no .kl files in ${copy}")
+	message(FATAL_ERROR
+		"${LABEL}-TAMPER: no files matching ${VICTIM_GLOB} in ${copy}")
 endif()
-list(GET kl_files 0 victim)
+list(GET victims 0 victim)
 
 file(APPEND "${copy}/${victim}" "\n")
 
 baku_kernel_digest("${copy}" tampered)
 if(tampered STREQUAL pristine)
 	message(FATAL_ERROR
-		"kernel digest selftest: modifying ${victim} did not change the digest")
+		"${LABEL}-TAMPER: modifying ${victim} did not change the digest")
 endif()
 
 execute_process(
 	COMMAND "${CMAKE_COMMAND}"
 		"-DTREE=${copy}"
 		"-DEXPECTED=${expected}"
+		"-DLABEL=${LABEL}"
 		-P "${repo_root}/tools/verify-kernel-digest.cmake"
 	RESULT_VARIABLE result
 	OUTPUT_VARIABLE output
@@ -53,10 +74,10 @@ execute_process(
 if(result EQUAL 0)
 	file(REMOVE_RECURSE "${work}")
 	message(FATAL_ERROR
-		"kernel digest selftest: verifier accepted a modified ${victim}\n"
+		"${LABEL}-TAMPER: verifier accepted a modified ${victim}\n"
 		"${output}${errors}")
 endif()
 
 file(REMOVE_RECURSE "${work}")
 message(STATUS
-	"BAKU-KERNEL-DIGEST-TAMPER OK: verifier rejected a modified ${victim}")
+	"${LABEL}-TAMPER OK: verifier rejected a modified ${victim}")

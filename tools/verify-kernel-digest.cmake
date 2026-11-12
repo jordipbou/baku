@@ -28,15 +28,19 @@ else()
 	baku_kernel_expected_digest("${EXPECTED_FILE}" expected)
 endif()
 
+if(NOT DEFINED LABEL)
+	set(LABEL "BAKU-KERNEL-DIGEST")
+endif()
+
 baku_kernel_digest("${TREE}" actual)
 
 if(NOT actual STREQUAL expected)
 	message(FATAL_ERROR
-		"BAKU-KERNEL-DIGEST FAIL: ${TREE}\n"
+		"${LABEL} FAIL: ${TREE}\n"
 		" expected ${expected}\n"
 		" got      ${actual}\n"
 		" method: sorted relative paths plus file SHA-256 manifest; "
 		"see vendor/shen-43.2/README.md")
 endif()
 
-message(STATUS "BAKU-KERNEL-DIGEST OK: ${actual}")
+message(STATUS "${LABEL} OK: ${actual}")

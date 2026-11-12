@@ -84,6 +84,25 @@ add_test(NAME baku_kernel_digest_tamper
 		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/kernel-digest-selftest.cmake)
 
+# The Shen kernel test suite is vendored verbatim beside the KLambda sources.
+# It is Shen source for a booted top level, so these checks only verify the
+# pinned bytes; running the suite is a target-level test.
+add_test(NAME baku_tests_digest
+	COMMAND ${CMAKE_COMMAND}
+		-DTREE=${CMAKE_CURRENT_SOURCE_DIR}/vendor/shen-43.2/tests
+		-DEXPECTED_FILE=${CMAKE_CURRENT_SOURCE_DIR}/vendor/shen-43.2/TESTS.md
+		-DLABEL=BAKU-TESTS-DIGEST
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify-kernel-digest.cmake)
+add_test(NAME baku_tests_digest_tamper
+	COMMAND ${CMAKE_COMMAND}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-DSOURCE_TREE=${CMAKE_CURRENT_SOURCE_DIR}/vendor/shen-43.2/tests
+		-DEXPECTED_FILE=${CMAKE_CURRENT_SOURCE_DIR}/vendor/shen-43.2/TESTS.md
+		-DWORK_NAME=tests-digest-selftest
+		-DVICTIM_GLOB=*.shen
+		-DLABEL=BAKU-TESTS-DIGEST
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/kernel-digest-selftest.cmake)
+
 file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
 # These tests initialise the whole kernel natively; see the exclusions below.
 set(BAKU_NATIVE_BOOT_TESTS boot-native kernel repl)

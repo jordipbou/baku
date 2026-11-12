@@ -43,6 +43,11 @@ cmake -DTREE=vendor/shen-43.2/klambda \
 self-test that appends a byte to a temporary copy of a `.kl` file and requires the
 check to fail.
 
+## Kernel test suite
+
+The official release's `tests/` tree is vendored verbatim next to `klambda/`
+under `tests/`. Its provenance and tree digest are recorded in `TESTS.md`.
+
 ## License
 
 The Shen kernel is Copyright (c) 2010-2022, Mark Tarver, and is distributed under
