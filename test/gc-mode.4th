@@ -24,6 +24,7 @@
 variable gcm-old
 variable gcm-cells
 variable gcm-value
+variable gcm-nongc-tail
 
 gcm-value 1 baku-gc-root+
 
@@ -57,6 +58,10 @@ gcm-value 1 baku-gc-root+
 	s" (defun gcm-build (N Acc) (if (= N 0) Acc (gcm-build (- N 1) (cons N Acc))))" ;
 : gcm-build-call ( -- c-addr u ) s" (gcm-build 3000 ())" ;
 : gcm-float-form ( -- c-addr u ) s" 3.5" ;
+: gcm-tail-def ( -- c-addr u )
+	s" (defun gcm-tail (N) (if (= N 0) 0 (gcm-tail (- N 1))))" ;
+: gcm-tail-shallow ( -- c-addr u ) s" (gcm-tail 2500)" ;
+: gcm-tail-deep ( -- c-addr u ) s" (gcm-tail 100000)" ;
 
 : gcm-report-mode ( -- )
 	." BAKU-MODE " baku-mode baku-mode-name type cr ;
@@ -72,6 +77,15 @@ gcm-value 1 baku-gc-root+
 	baku-native-code-cells @ gcm-cells @ > 3 check
 	baku-gc-collections @ gcm-old @ = 4 check
 	baku-mode baku-mode-nongc = 5 check
+
+	\ Reference run for the depth-independence checks below: the same
+	\ one-parameter countdown at 2,500 depth goes through the non-GC native
+	\ backend before an arena or collector exists.  The deep GC run must
+	\ reproduce this result, and the existing non-GC parameterised tail checks
+	\ (test/eval.4th and test/native.4th) pin the same 2,500-deep case
+	\ independently.
+	gcm-tail-def gcm-eval drop
+	gcm-tail-shallow gcm-eval baku-fixnum-value gcm-nongc-tail !
 
 	\ Arena mode is native too: code is generated and no collection runs.
 	baku-arena-create
@@ -128,7 +142,23 @@ gcm-value 1 baku-gc-root+
 	gcm-value @ baku-float@ 3.5e 0.000001e f~ 26 check
 	baku-gc-collect
 	gcm-value @ baku-float? 27 check
-	gcm-value @ baku-float@ 3.5e 0.000001e f~ 28 check ;
+	gcm-value @ baku-float@ 3.5e 0.000001e f~ 28 check
+
+	\ Depth independence under the collector.  A parameterised interpreted
+	\ tail call allocates one environment and one argument list per iteration
+	\ (about 168 bytes), so a 100,000-deep chain allocates far more than the
+	\ 128 KiB semispace.  It can only finish if every iteration's frames are
+	\ reclaimed, and its result must equal the non-GC 2,500-deep reference.
+	\ Redefining the function now installs an interpreted closure whose IR
+	\ lives in the GC, shadowing the non-GC native definition.
+	gcm-tail-def gcm-eval drop
+	baku-gc-collections @ gcm-old !
+	gcm-tail-shallow gcm-eval baku-fixnum-value gcm-nongc-tail @ = 29 check
+	gcm-tail-deep gcm-eval baku-fixnum-value gcm-nongc-tail @ = 30 check
+	baku-gc-collections @ gcm-old @ > 31 check
+	baku-gc-collect
+	baku-gc-used? baku-gc-semispace @ < 32 check
+	baku-mode baku-mode-gc = 33 check ;
 
 : gcm-unsupported-test ( -- )
 	baku-mode baku-mode-nongc = 1 check
