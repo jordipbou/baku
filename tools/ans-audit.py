@@ -29,7 +29,10 @@ ENTRY = "4th/baku.4th"
 # A single documented portability file may isolate a non-ANS word.  Baku has
 # no such file today; keep this empty rather than silently allowing words.
 DOCUMENTED_PORTABILITY_EXCEPTIONS = {
-    # "4th/portability.4th": {"WORD"},
+    # The GC needs the Forth stack roots.  This one adapter is [DEFINED]-gated;
+    # a target without stack pointers keeps a no-op adapter and refuses GC
+    # activation with a catchable error instead of missing a root.
+    "4th/gc-stack.4th": {"SP0", "SP@", "RP0", "RP@"},
 }
 
 # The project spec (specs/forth-portability.md) says INCLUDE is not the

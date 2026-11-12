@@ -97,3 +97,8 @@ create baku-arena-prev-syncs baku-arena-max cells allot
 	then ;
 
 ' baku-arena-alloc-sync is baku-alloc-sync
+
+\ The collector must not move while an arena exists.  The GC layer loads before
+\ this one, so its arena predicate is a deferred word bound here.
+: baku-gc-arena-active-real ( -- flag ) baku-arena-active? ;
+' baku-gc-arena-active-real is baku-gc-arena-active?

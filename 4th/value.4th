@@ -31,6 +31,13 @@
 7 constant baku-type-error
 8 constant baku-type-float
 
+\ Closure kinds are part of the value layout, so the collector can decide which
+\ closure payload cells are Shen references without depending on the evaluator.
+0 constant baku-closure-interpreted
+1 constant baku-closure-primitive
+2 constant baku-closure-partial
+3 constant baku-closure-native
+
 \ Reserved immediate values.  All have low three bits 010 so a future immediate
 \ can be added without colliding with fixnums or pointers.  They are not Forth
 \ flags and they are not null pointers.
@@ -118,6 +125,18 @@ variable baku-new-kind
 : baku-region-drop ( -- )
 	baku-region-count @ 0= if baku-invalid-argument throw then
 	baku-region-count @ 1- baku-region-count ! ;
+
+\ The GC flips between two semispaces, so its extent moves without changing the
+\ number of regions.  These accessors keep the array layout private to this
+\ file: the collector updates exactly one registered entry by index.
+: baku-region-start-addr ( index -- addr ) cells baku-region-starts + ;
+: baku-region-end-addr ( index -- addr ) cells baku-region-ends + ;
+: baku-region-kind-addr ( index -- addr ) cells baku-region-kinds + ;
+
+: baku-region-update ( start end-addr kind index -- )
+	dup >r baku-region-kind-addr !
+	r@ baku-region-end-addr !
+	r> baku-region-start-addr ! ;
 
 \ ---------------------------------------------------------------------------
 \ Tags, immediates and object classification
@@ -231,12 +250,24 @@ defer baku-alloc-sync
 : baku-alloc-sync-none ;
 ' baku-alloc-sync-none is baku-alloc-sync
 
+\ Called when the selected heap cannot satisfy a request.  The GC binds this to
+\ collect and retry when the selected heap is its from-space; a non-GC or arena
+\ heap keeps the default and raises the catchable out-of-memory code.
+defer baku-alloc-full
+: baku-alloc-full-default ( -- ) baku-out-of-memory throw ;
+' baku-alloc-full-default is baku-alloc-full
+
 : baku-alloc ( payload-bytes type -- obj )
 	baku-alloc-type ! baku-alloc-payload !
 	baku-alloc-payload @ baku-round-cells cell +   ( total )
 	baku-heap-here @ @                             ( total old )
 	2dup + baku-heap-end @ @ u> if
-		2drop baku-out-of-memory throw
+		2drop baku-alloc-full
+		baku-alloc-payload @ baku-round-cells cell +   ( total )
+		baku-heap-here @ @                             ( total old )
+	then
+	2dup + baku-heap-end @ @ u> if
+		baku-out-of-memory throw
 	then
 	( total old )
 	dup >r                                         ( total old | R: old )
@@ -280,6 +311,9 @@ defer baku-alloc-sync
 
 : baku-set-tl ( value cons -- )
 	baku-type-cons baku-cons-expected baku-assert-type 2 cells + ! ;
+
+: baku-cons-tl-addr ( cons -- addr )
+	baku-type-cons baku-cons-expected baku-assert-type 2 cells + ;
 
 \ ---------------------------------------------------------------------------
 \ Strings: a byte-counted payload, no terminator
@@ -329,8 +363,10 @@ variable baku-slice-len
 	baku-slice-len @ 0 < if baku-string-bounds-error throw then
 	baku-slice-start @ baku-slice-len @ +
 	baku-slice-src @ baku-string-length > if baku-string-bounds-error throw then
+	baku-slice-len @ baku-type-string baku-alloc >r
 	baku-slice-src @ baku-string-addr baku-slice-start @ +
-	baku-slice-len @ baku-string ;
+	r@ cell + baku-slice-len @ cmove
+	r> ;
 
 variable baku-cat-a
 variable baku-cat-b
@@ -386,6 +422,37 @@ variable baku-error-len
 : baku-error-message ( obj -- c-addr u )
 	baku-type-error baku-error-expected baku-assert-type
 	dup cell + swap baku-object-size ;
+
+\ Build an error object from a string value.  The source string may live in the
+\ GC, so the object is reloaded from a root after the allocation; passing its
+\ payload address to BAKU-ERROR would leave an interior pointer dangling across
+\ a collection.
+variable baku-error-string-src
+variable baku-error-string-len
+
+: baku-error-from-string ( obj -- obj )
+	dup baku-string? 0= if baku-string-expected throw then
+	dup baku-error-string-src !
+	dup baku-string-length baku-error-string-len !
+	drop
+	baku-error-string-len @ baku-type-error baku-alloc >r
+	baku-error-string-src @ baku-string-addr
+	r@ cell + baku-error-string-len @ cmove
+	r> ;
+
+\ Copy an error object's inline message into a fresh string.  The error object
+\ is reloaded from a root after the allocation for the same reason.
+variable baku-error-copy-src
+variable baku-error-copy-len
+
+: baku-error-message-string ( obj -- str )
+	dup baku-error? 0= if baku-error-expected throw then
+	dup baku-error-copy-src !
+	dup baku-object-size baku-error-copy-len !
+	drop
+	baku-error-copy-len @ baku-type-string baku-alloc >r
+	baku-error-copy-src @ cell + r@ cell + baku-error-copy-len @ cmove
+	r> ;
 
 \ ---------------------------------------------------------------------------
 \ Vectors: a cell-counted payload.  Elements start zeroed so an uninitialised

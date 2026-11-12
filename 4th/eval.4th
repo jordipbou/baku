@@ -92,11 +92,6 @@ variable baku-tail-args
 \ Closures
 \ ---------------------------------------------------------------------------
 
-0 constant baku-closure-interpreted
-1 constant baku-closure-primitive
-2 constant baku-closure-partial
-3 constant baku-closure-native
-
 : baku-closure? ( x -- flag )
 	dup baku-object? if baku-object-type baku-type-closure = else drop false then ;
 
@@ -600,3 +595,31 @@ defer baku-native-run
 	['] baku-eval-kl 1 s" eval-kl" baku-intern baku-defprim ;
 
 baku-eval-init
+
+\ ---------------------------------------------------------------------------
+\ GC roots
+\ ---------------------------------------------------------------------------
+\
+\ The evaluator keeps intermediate Shen values in dictionary cells during
+\ recursive evaluation.  A collection can run inside a constructor, so these
+\ cells are roots; the collector updates them in place.  The two bucket arrays
+\ are table roots because a bootstrap entry may live in non-GC memory and still
+\ hold a GC value after a GC-mode SET.
+
+baku-raised-value 1 baku-gc-root+
+baku-tail-fn 1 baku-gc-root+
+baku-tail-args 1 baku-gc-root+
+baku-op-env 1 baku-gc-root+
+baku-ap-args 1 baku-gc-root+
+baku-body-code 1 baku-gc-root+
+baku-apply-fn 1 baku-gc-root+
+baku-apply-args 1 baku-gc-root+
+baku-partial-target 1 baku-gc-root+
+baku-partial-saved 1 baku-gc-root+
+baku-bind-params 1 baku-gc-root+
+baku-bind-args 1 baku-gc-root+
+baku-bind-env 1 baku-gc-root+
+baku-mk-code 1 baku-gc-root+
+baku-mk-env 1 baku-gc-root+
+baku-fn-buckets baku-symbol-buckets-count baku-gc-table+
+baku-global-buckets baku-symbol-buckets-count baku-gc-table+

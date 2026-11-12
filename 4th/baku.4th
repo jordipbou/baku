@@ -13,6 +13,7 @@
 	S" portability.4th" INCLUDED
 	S" probe.4th" INCLUDED
 	S" value.4th" INCLUDED
+	S" gc.4th" INCLUDED
 	S" arena.4th" INCLUDED
 	S" reader.4th" INCLUDED
 	S" frontend.4th" INCLUDED
@@ -26,6 +27,7 @@
 	S" 4th/portability.4th" INCLUDED
 	S" 4th/probe.4th" INCLUDED
 	S" 4th/value.4th" INCLUDED
+	S" 4th/gc.4th" INCLUDED
 	S" 4th/arena.4th" INCLUDED
 	S" 4th/reader.4th" INCLUDED
 	S" 4th/frontend.4th" INCLUDED

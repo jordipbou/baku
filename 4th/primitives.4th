@@ -523,11 +523,10 @@ create baku-byte-buffer 1 allot
 
 : baku-prim-simple-error ( obj -- )
 	dup baku-string? 0= if baku-eval-type throw then
-	dup baku-string-addr swap baku-string-length
-	baku-error baku-raise ;
+	baku-error-from-string baku-raise ;
 
 : baku-prim-error-to-string ( x -- str )
-	dup baku-error? if baku-error-message baku-string exit then
+	dup baku-error? if baku-error-message-string exit then
 	baku-prim-str ;
 
 \ ---------------------------------------------------------------------------
@@ -844,3 +843,11 @@ variable baku-time-ready
 	['] baku-prim-get-time 1 s" get-time" baku-intern baku-defprim ;
 
 baku-primitives-init
+
+\ GC roots: primitives that hold two Shen values across a constructor.
+baku-eq-sa 1 baku-gc-root+
+baku-eq-sb 1 baku-gc-root+
+baku-io-stream 1 baku-gc-root+
+baku-io-str 1 baku-gc-root+
+baku-io-name 1 baku-gc-root+
+baku-open-home 1 baku-gc-root+
