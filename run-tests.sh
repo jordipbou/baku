@@ -100,6 +100,19 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side vendored-kernel immutability scan and its deliberate-failure
+# self-test.  The tree digest checks bytes at rest; this scan checks that no
+# shipped Forth can write or replace them.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_vendor_audit' \
+		--output-on-failure; then
+		echo "BAKU-VENDOR-AUDIT PASS"
+	else
+		echo "BAKU-VENDOR-AUDIT FAIL" >&2
+		fail=1
+	fi
+fi
+
 # Host-side primitive manifest and its parser/classifier self-test.
 if [ "$fail" -eq 0 ]; then
 	if ctest --test-dir build -C Debug -R '^baku_primitive_manifest' \

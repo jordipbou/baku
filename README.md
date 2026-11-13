@@ -386,13 +386,19 @@ Host-side checks that do not need a Forth target:
 
 ```sh
 ctest --test-dir build -C Debug -R '^baku_(kernel_digest|tests_digest)' --output-on-failure
-ctest --test-dir build -C Debug -R '^baku_(ans_audit|primitive_manifest)' --output-on-failure
+ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|primitive_manifest)' --output-on-failure
 ```
 
 `tools/ans-audit.py` follows `4th/baku.4th` and maps every external word to its
 ANS Forth 2012 wordset. It fails on any non-standard word except the two
 documented stack-pointer words isolated in `4th/gc-stack.4th`. This keeps the
 "completely ANS Forth 2012" claim executable rather than aspirational.
+
+`tools/vendor-audit.py` uses the same shipped-file graph. It allows exactly one
+vendored path literal, the `BAKU-BOOT-DIR` read prefix in `4th/boot.4th`, and
+fails if any boot-path unit contains a write, rename, delete, resize or
+string-replacement operation. Its self-test inserts a write through the prefix
+and a replacement aimed at a vendored file; both must be reported.
 
 ## Licensing and kernel provenance
 
@@ -406,7 +412,10 @@ tag, commit, asset URL, asset SHA-256, extracted-tree digest and vendoring date.
 The official test suite is vendored verbatim beside it under
 `vendor/shen-43.2/tests/`, with the same provenance in
 `vendor/shen-43.2/TESTS.md`. Do not edit either tree; a boot failure is fixed in
-Baku's reader, executor or primitives, never in a kernel file.
+Baku's reader, executor or primitives, never in a kernel file. The tree digests
+prove the bytes at rest; `tools/vendor-audit.py` proves shipped Forth has no
+write or replacement path aimed at them, and the no-build test re-digests the
+copied corpus after a full boot.
 
 Recompute both tree digests with the same verifier:
 

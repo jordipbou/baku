@@ -20,6 +20,12 @@ file(COPY "${SOURCE_DIR}/4th" DESTINATION "${work}/tree")
 file(COPY "${SOURCE_DIR}/vendor/shen-43.2/klambda"
 	DESTINATION "${work}/tree/vendor/shen-43.2")
 
+# The boot reads the vendored corpus and must not rewrite it.  Snapshot the
+# copied tree bytes so a source-level write path is caught even if the static
+# audit is bypassed.
+include("${SOURCE_DIR}/tools/kernel-digest.cmake")
+baku_kernel_digest("${work}/tree/vendor/shen-43.2/klambda" vendor_before)
+
 foreach(forbidden CMakeLists.txt run-tests.sh build)
 	if(EXISTS "${work}/tree/${forbidden}")
 		message(FATAL_ERROR "no-build: copied tree still contains ${forbidden}")
@@ -61,6 +67,12 @@ file(GLOB_RECURSE after RELATIVE "${work}/tree" "${work}/tree/*.4th")
 if(NOT "${before}" STREQUAL "${after}")
 	message(FATAL_ERROR
 		"no-build: boot changed the shipped .4th set\nbefore:\n${before}\nafter:\n${after}")
+endif()
+
+baku_kernel_digest("${work}/tree/vendor/shen-43.2/klambda" vendor_after)
+if(NOT "${vendor_before}" STREQUAL "${vendor_after}")
+	message(FATAL_ERROR
+		"no-build: boot changed the vendored KLambda tree\nbefore: ${vendor_before}\nafter: ${vendor_after}")
 endif()
 
 message(STATUS "NO-BUILD PASS")

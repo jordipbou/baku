@@ -21,11 +21,19 @@ Annex H (Alphabetic list of words), one "WORD<TAB>WORDSET" per line.
 """
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
-ENTRIES = ("4th/baku.4th", "4th/start.4th")
+from forth_source import (
+    DEFINING_WORDS,
+    ENTRIES,
+    NUMBER_RE,
+    SKIP_NEXT_TOKEN,
+    STRING_WORDS,
+    collect_shipped,
+    resolve_include,
+    tokenize,
+)
 
 # A single documented portability file may isolate a non-ANS word.  Baku has
 # no such file today; keep this empty rather than silently allowing words.
@@ -50,31 +58,6 @@ HOST_EXTENSIONS = {
     ".sh", ".bash", ".zsh", ".ksh",
 }
 
-DEFINING_WORDS = {
-    ":", ":NONAME", "VARIABLE", "CONSTANT", "CREATE", "DEFER", "VALUE",
-    "MARKER", "2VARIABLE", "2CONSTANT", "2VALUE", "FVARIABLE", "FCONSTANT",
-    "SYNONYM",
-}
-
-STRING_WORDS = {
-    'S"', '."', 'C"', 'ABORT"', 'S\\"',
-}
-
-# Words whose next token is a literal or an environment query argument, not a
-# word use: CHAR/[CHAR] take a character, [DEFINED]/[UNDEFINED] take a name.
-SKIP_NEXT_TOKEN = {
-    "CHAR", "[CHAR]", "[DEFINED]", "[UNDEFINED]",
-}
-
-NUMBER_RE = re.compile(
-    r"^[+-]?(?:"
-    r"\d+(?:\.\d*)?|\.\d+"
-    r")(?:[eEdD][+-]?\d*)?$"
-    r"|^\$[0-9A-Fa-f]+$"
-    r"|^0[xX][0-9A-Fa-f]+$"
-)
-
-
 def load_standard(path):
     standard = {}
     for line in path.read_text().splitlines():
@@ -83,93 +66,6 @@ def load_standard(path):
         word, _, wordset = line.partition("\t")
         standard[word.strip().upper()] = wordset.strip()
     return standard
-
-
-def tokenize(text):
-    """Return (kind, value, line) with kind 'word' or 'string'."""
-    tokens = []
-    i = 0
-    n = len(text)
-    line = 1
-    while i < n:
-        c = text[i]
-        if c == "\n":
-            line += 1
-            i += 1
-            continue
-        if c.isspace():
-            i += 1
-            continue
-        boundary = i == 0 or text[i - 1].isspace()
-        if c == "\\" and boundary:
-            j = text.find("\n", i)
-            i = n if j < 0 else j
-            continue
-        if c == "(" and boundary:
-            j = text.find(")", i)
-            if j < 0:
-                j = n
-            line += text.count("\n", i, j)
-            i = j + 1
-            continue
-        j = i
-        while j < n and not text[j].isspace():
-            j += 1
-        tok = text[i:j]
-        tokens.append(("word", tok, line))
-        if tok.upper() in STRING_WORDS:
-            k = text.find('"', j)
-            if k < 0:
-                k = n
-            content = text[j:k]
-            tokens.append(("string", content, line))
-            line += text.count("\n", j, k)
-            i = k + 1
-        else:
-            i = j
-    return tokens
-
-
-def resolve_include(root, including, target):
-    candidates = [root / target, including.parent / target]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate.resolve()
-    return None
-
-
-def collect_shipped(root):
-    shipped = []
-    seen = set()
-    stack = []
-    includes = []
-    for entry_name in ENTRIES:
-        entry = root / entry_name
-        if not entry.is_file():
-            raise SystemExit(f"ans-audit: entry point not found: {entry}")
-        stack.append(entry.resolve())
-    while stack:
-        path = stack.pop()
-        if path in seen:
-            continue
-        seen.add(path)
-        shipped.append(path)
-        try:
-            text = path.read_text()
-        except UnicodeDecodeError as exc:
-            raise SystemExit(f"ans-audit: cannot read {path}: {exc}")
-        tokens = tokenize(text)
-        for idx, (kind, value, line) in enumerate(tokens):
-            if kind != "word" or value.upper() != "INCLUDED":
-                continue
-            if idx == 0 or tokens[idx - 1][0] != "string":
-                continue
-            target = tokens[idx - 1][1].strip()
-            includes.append((path, line, target))
-            resolved = resolve_include(root, path, target)
-            if resolved is not None:
-                stack.append(resolved)
-    return sorted(shipped), includes
 
 
 def audit(root, verbose=False):
