@@ -166,7 +166,7 @@ COMPILER_RUNTIME = {
 }
 
 
-def definition_cells(shipped, root):
+def definition_cells(shipped):
     """Return the upper-case names defined as dictionary cells."""
     cells = set()
     for path in shipped:
@@ -179,7 +179,7 @@ def definition_cells(shipped, root):
     return cells
 
 
-def scan_stores(path, tokens, cells):
+def scan_stores(tokens, cells):
     """Return (cell stores, computed stores) for one file.
 
     A computed store is (line, unit name, destination word, store word).
@@ -215,7 +215,7 @@ def scan_stores(path, tokens, cells):
 
 def audit(root, verbose=False):
     shipped, _ = collect_shipped(root)
-    cells = definition_cells(shipped, root)
+    cells = definition_cells(shipped)
 
     violations = []
     reviewed_counts = Counter()
@@ -227,7 +227,7 @@ def audit(root, verbose=False):
     for path in shipped:
         rel = path.relative_to(root).as_posix()
         tokens = tokenize(path.read_text())
-        cell_stores, computed = scan_stores(path, tokens, cells)
+        cell_stores, computed = scan_stores(tokens, cells)
         cell_total += cell_stores
         computed_total += len(computed)
         for line, unit_name, destination, store in computed:
