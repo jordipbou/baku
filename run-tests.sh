@@ -113,6 +113,19 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side cross-region store audit and its deliberate-failure self-test.
+# Every raw address store in the shipped tree must be reviewed; object payload
+# stores stay in the value layer while the checked store is deferred.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_region_audit' \
+		--output-on-failure; then
+		echo "BAKU-REGION-AUDIT PASS"
+	else
+		echo "BAKU-REGION-AUDIT FAIL" >&2
+		fail=1
+	fi
+fi
+
 # Host-side primitive manifest and its parser/classifier self-test.
 if [ "$fail" -eq 0 ]; then
 	if ctest --test-dir build -C Debug -R '^baku_primitive_manifest' \

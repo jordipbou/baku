@@ -23,7 +23,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from forth_source import collect_shipped, tokenize
+from forth_source import build_units, collect_shipped, tokenize
 
 VENDOR_MARKER = "vendor/shen-43.2"
 ALLOWED_LITERAL_FILE = "4th/boot.4th"
@@ -52,36 +52,6 @@ VENDOR_UNIT_PREFIX = "BAKU-BOOT-"
 
 def is_vendor_literal(text):
     return VENDOR_MARKER in text.replace("\\", "/").lower()
-
-
-def build_units(tokens):
-    """Group tokens into colon definitions and one top-level unit."""
-    top = {"name": "<TOPLEVEL>", "line": 1, "indices": []}
-    units = [top]
-    current = top
-    index = 0
-    while index < len(tokens):
-        kind, value, line = tokens[index]
-        upper = value.upper() if kind == "word" else ""
-        if kind == "word" and upper in (":", ":NONAME"):
-            name = "<NONAME>"
-            next_index = index + 1
-            if (upper == ":" and next_index < len(tokens)
-                    and tokens[next_index][0] == "word"):
-                name = tokens[next_index][1].upper()
-                next_index += 1
-            unit = {"name": name, "line": line, "indices": []}
-            units.append(unit)
-            current = unit
-            index = next_index
-            continue
-        if kind == "word" and upper == ";" and current is not top:
-            current = top
-            index += 1
-            continue
-        current["indices"].append(index)
-        index += 1
-    return units
 
 
 def mutation_hits(tokens, indices):

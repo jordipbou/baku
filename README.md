@@ -386,7 +386,7 @@ Host-side checks that do not need a Forth target:
 
 ```sh
 ctest --test-dir build -C Debug -R '^baku_(kernel_digest|tests_digest)' --output-on-failure
-ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|primitive_manifest)' --output-on-failure
+ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|primitive_manifest)' --output-on-failure
 ```
 
 `tools/ans-audit.py` follows `4th/baku.4th` and maps every external word to its
@@ -399,6 +399,16 @@ vendored path literal, the `BAKU-BOOT-DIR` read prefix in `4th/boot.4th`, and
 fails if any boot-path unit contains a write, rename, delete, resize or
 string-replacement operation. Its self-test inserts a write through the prefix
 and a replacement aimed at a vendored file; both must be reported.
+
+`tools/region-audit.py` reviews every raw address store in the same shipped
+graph. Stores to named dictionary cells are ordinary; every computed-address
+store must appear in its reviewed table with the enclosing definition, a
+category and a reason. Object payload stores are allowed only in the value
+layer's constructors and writers, plus the closure writer. A new raw store, or
+an extra store inside a reviewed definition, fails the audit. Its self-test
+injects a raw cons-payload store in the compiler and an extra store in a
+reviewed writer; both must be reported, while a dictionary-cell store still
+passes. This is the executable form of the deferred checked-store rule.
 
 ## Licensing and kernel provenance
 
@@ -451,10 +461,10 @@ self-tests, so a broken verifier cannot look green.
   meet both no-latency reclaim and a bounded dynamic heap.
 - **Deferred checked store.** Requirement: no cross-region references outside the
   roots; the checked store is explicitly deferred. Choice: rely on the allocator
-  and constructor APIs plus tests, and keep the rule visible in the region map.
-  Rejected: a tagged store on every write, which the entry does not require and
-  which would slow every mutation while adding an error path the kernel does not
-  expect.
+  and constructor APIs plus tests, and review every raw address store with
+  `tools/region-audit.py` so an unreviewed one fails the gate. Rejected: a tagged
+  store on every write, which the entry does not require and which would slow
+  every mutation while adding an error path the kernel does not expect.
 - **Dictionary threaded code, not C or bytecode.** Requirement: ANS Forth only,
   no host-language runtime. Choice: emit dictionary cells with an explicit opcode
   and a small inner interpreter; the parameter cells are permanent symbols.

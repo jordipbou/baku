@@ -81,6 +81,41 @@ def tokenize(text):
     return tokens
 
 
+def build_units(tokens):
+    """Group tokens into colon definitions and one top-level unit.
+
+    A unit owns the token indices between its defining word and the matching
+    semicolon.  Returned as dicts with name, line and indices so source audits
+    can attribute a word use to the definition that contains it.
+    """
+    top = {"name": "<TOPLEVEL>", "line": 1, "indices": []}
+    units = [top]
+    current = top
+    index = 0
+    while index < len(tokens):
+        kind, value, line = tokens[index]
+        upper = value.upper() if kind == "word" else ""
+        if kind == "word" and upper in (":", ":NONAME"):
+            name = "<NONAME>"
+            next_index = index + 1
+            if (upper == ":" and next_index < len(tokens)
+                    and tokens[next_index][0] == "word"):
+                name = tokens[next_index][1].upper()
+                next_index += 1
+            unit = {"name": name, "line": line, "indices": []}
+            units.append(unit)
+            current = unit
+            index = next_index
+            continue
+        if kind == "word" and upper == ";" and current is not top:
+            current = top
+            index += 1
+            continue
+        current["indices"].append(index)
+        index += 1
+    return units
+
+
 def resolve_include(root, including, target):
     candidates = [root / target, including.parent / target]
     for candidate in candidates:
