@@ -76,6 +76,7 @@ variable baku-sym-lambda
 variable baku-sym-defun
 variable baku-sym-freeze
 variable baku-sym-trap-error
+variable baku-sym-type
 
 \ Native IR scratch.  The native backend lowers one form at a time and frees
 \ the IR after compiling it; the interpreter keeps IR as closure code and never
@@ -110,7 +111,8 @@ variable baku-ir-scratch-end
 	s" lambda" baku-intern baku-sym-lambda !
 	s" defun" baku-intern baku-sym-defun !
 	s" freeze" baku-intern baku-sym-freeze !
-	s" trap-error" baku-intern baku-sym-trap-error ! ;
+	s" trap-error" baku-intern baku-sym-trap-error !
+	s" type" baku-intern baku-sym-type ! ;
 
 : baku-special-kind ( sym -- kind|-1 )
 	dup baku-sym-if @ = if drop baku-ir-if exit then
@@ -451,6 +453,11 @@ variable baku-front-special
 : baku-frontend-real ( form tail -- ir )
 	over baku-cons? if
 		over baku-hd dup baku-symbol? if
+			dup baku-sym-type @ = if
+				drop
+				over baku-list-length 3 <> if baku-front-arity throw then
+				over baku-tl baku-hd swap baku-frontend nip exit
+			then
 			baku-special-kind
 		else
 			drop -1
