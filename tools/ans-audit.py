@@ -26,10 +26,8 @@ from pathlib import Path
 
 from forth_source import (
     DEFINING_WORDS,
-    ENTRIES,
     NUMBER_RE,
     SKIP_NEXT_TOKEN,
-    STRING_WORDS,
     collect_shipped,
     resolve_include,
     tokenize,
