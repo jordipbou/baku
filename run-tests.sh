@@ -111,6 +111,18 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side one-line user path: a copied checkout with no build machinery boots
+# the kernel through 4th/start.4th and reaches the Shen top level.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_no_build$' \
+		--output-on-failure; then
+		echo "BAKU-NO-BUILD PASS"
+	else
+		echo "BAKU-NO-BUILD FAIL" >&2
+		fail=1
+	fi
+fi
+
 # Cross-target differential: the same fixed program must emit identical marked
 # lines on Sloth and gforth.
 if [ "$fail" -eq 0 ]; then

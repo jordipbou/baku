@@ -31,26 +31,52 @@ The generated primitive-to-ANS mapping is in
 
 ## Using the sources
 
-There is no build step. The shipped entry point is `4th/baku.4th`, and the
-Forth system loads every layer with `INCLUDED`. No generated `.4th` file is
-created, and CMake is not needed to run Baku. Include the entry point from the
-repository root:
+There is no build step. The shipped library entry point is `4th/baku.4th`, and
+the shipped one-line user entry is `4th/start.4th`. Forth loads every layer with
+`INCLUDED`; no generated `.4th` file is created and CMake is not needed to run
+Baku.
+
+To reach the Shen top level, include the user entry from the repository root.
+The target must be started with enough dictionary space for the non-GC boot
+(about 490 MiB of retained kernel data); on gforth:
+
+```sh
+gforth -m 768M -d 16M -r 16M
+s" 4th/start.4th" INCLUDED
+```
+
+or as one command:
+
+```sh
+gforth -m 768M -d 16M -r 16M -e 's" 4th/start.4th" INCLUDED'
+```
+
+`4th/start.4th` raises the non-GC heap request before `4th/value.4th` loads,
+loads `4th/baku.4th`, selects the native installer, reads the 23 vendored
+KLambda files, runs `shen.initialise` then `stlib.initialise`, prints
+`BAKU-STARTED`, and enters `baku-repl`. It takes about 45 seconds on gforth.
+
+The dictionary flags are a target requirement, not a build step. Why the entry
+file exists instead of one word inside `4th/baku.4th`: the non-GC block is a
+dictionary reservation sized when `4th/value.4th` loads, the native installer is
+selected by the caller so the interpreter remains available as the reference, and
+the kernel globals are bound after loading but before initialisation. Loading the
+library by itself therefore cannot also choose a lifetime policy without forcing
+one on every embedder.
+
+To load only the layers and check the environment, include the library entry
+point. It creates no generated file and prints the startup probe:
 
 ```sh
 gforth -m 64M
 s" 4th/baku.4th" INCLUDED
 ```
 
-That loads and checks the layers and prints the startup probe. The probe reports
-each required ANS Forth 2012 wordset as `PRESENT` or `ABSENT` and aborts if one
-is missing. Baku requires Facility, Memory-Allocation, Floating, File, Exception
-and Double-Number; see `4th/probe.4th`.
+The probe reports each required ANS Forth 2012 wordset as `PRESENT` or `ABSENT`
+and aborts if one is missing. Baku requires Facility, Memory-Allocation,
+Floating, File, Exception and Double-Number; see `4th/probe.4th`.
 
-Booting the kernel is a separate step because the lifetime policy is a choice.
-In the default non-GC mode the kernel is compiled to dictionary code and every
-boot allocation is kept, so the non-GC heap request must be raised before
-`4th/value.4th` loads. The following is the complete non-GC session (it takes
-about 45 seconds on gforth):
+The one-line session spelled out, for an embedder that wants to pick each step:
 
 ```sh
 gforth -m 768M -d 16M -r 16M
@@ -64,23 +90,18 @@ baku-boot-initialise
 baku-repl
 ```
 
-Why the extra steps instead of one word: the non-GC block is a dictionary
-reservation sized when `4th/value.4th` loads, the native installer is selected by
-the caller so the interpreter remains available as the reference, and the kernel
-globals are bound after loading but before initialisation. `baku-boot-initialise`
-runs `shen.initialise` then `stlib.initialise`, in that order. The heap request
-is about the non-GC lifetime policy, not a build step: after `stlib.initialise`
-the kernel keeps about 490 MiB of data. The kernel suite's collector boot is the
-alternative lifetime policy: a 64 MiB non-GC symbol area plus a 256 MiB allocated
-semispace, with the interpreter as the executor.
+`baku-boot-initialise` runs `shen.initialise` then `stlib.initialise`, in that
+order. The kernel suite's collector boot is the alternative lifetime policy: a
+64 MiB non-GC symbol area plus a 256 MiB allocated semispace, with the
+interpreter as the executor.
 
 On Sloth the same session works from the repository root; start Sloth with a
 dictionary large enough for the heap. The `[DEFINED] gforth` switch at the top of
-`4th/baku.4th` and every test file is the only per-target *file-inclusion*
-difference: gforth resolves a nested `INCLUDED` relative to the including file,
-Sloth relative to the working directory. It changes no semantics; the other
-target difference is the `[DEFINED]`-gated stack-root adapter in
-`4th/gc-stack.4th`.
+`4th/baku.4th`, `4th/start.4th` and every test file is the only per-target
+*file-inclusion* difference: gforth resolves a nested `INCLUDED` relative to the
+including file, Sloth relative to the working directory. It changes no
+semantics; the other target difference is the `[DEFINED]`-gated stack-root
+adapter in `4th/gc-stack.4th`.
 
 To run the whole test gate:
 
@@ -113,6 +134,7 @@ consume the earlier representation.
 | `4th/compat.4th` | `input+`, installed as an interpreted KLambda definition |
 | `4th/boot.4th` | Kernel load manifest, host globals and the two initialisers |
 | `4th/repl.4th` | Top level: standard input, expression mode and file mode |
+| `4th/start.4th` | One-line user entry: heap request, native installer, kernel boot and REPL |
 
 The reader produces forms; the front end lowers a form into a mode-independent
 IR; both executors consume that IR. The interpreter is not a fallback that can

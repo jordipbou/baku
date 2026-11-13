@@ -72,6 +72,17 @@ add_test(NAME baku_primitive_manifest_selftest
 	COMMAND ${PYTHON3_EXECUTABLE}
 		${CMAKE_CURRENT_SOURCE_DIR}/tools/manifest.py --self-test)
 
+# The one-line user path: copy a checkout without build/, CMakeLists.txt or
+# run-tests.sh, load 4th/start.4th through the gforth target, and require the
+# top level to answer while boot generates no .4th file.  It boots the whole
+# kernel, so it is gforth-only for the same reason as boot-native.
+add_test(NAME baku_no_build
+	COMMAND ${CMAKE_COMMAND}
+		-DGFORTH_EXECUTABLE=${GFORTH_EXECUTABLE}
+		-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/no-build.cmake)
+
 # Host-side checks: the vendored kernel bytes and a self-test that proves a
 # modified .kl file is rejected.  These do not depend on a Forth target.
 add_test(NAME baku_kernel_digest

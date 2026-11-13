@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Static ANS Forth 2012 audit for Baku's shipped sources.
 
-The shipped path starts at 4th/baku.4th and follows every INCLUDED reference.
-For each shipped file the audit:
+The shipped path starts at every entry point (4th/baku.4th and the one-line
+user entry 4th/start.4th) and follows every INCLUDED reference.  For each
+shipped file the audit:
 
   * lists every external word and maps it to an ANS Forth 2012 wordset;
   * fails on any word that is neither ANS Forth 2012 nor defined by Baku;
@@ -24,7 +25,7 @@ import re
 import sys
 from pathlib import Path
 
-ENTRY = "4th/baku.4th"
+ENTRIES = ("4th/baku.4th", "4th/start.4th")
 
 # A single documented portability file may isolate a non-ANS word.  Baku has
 # no such file today; keep this empty rather than silently allowing words.
@@ -138,14 +139,15 @@ def resolve_include(root, including, target):
 
 
 def collect_shipped(root):
-    entry = root / ENTRY
-    if not entry.is_file():
-        raise SystemExit(f"ans-audit: entry point not found: {entry}")
-
     shipped = []
     seen = set()
-    stack = [entry.resolve()]
+    stack = []
     includes = []
+    for entry_name in ENTRIES:
+        entry = root / entry_name
+        if not entry.is_file():
+            raise SystemExit(f"ans-audit: entry point not found: {entry}")
+        stack.append(entry.resolve())
     while stack:
         path = stack.pop()
         if path in seen:
@@ -293,7 +295,7 @@ def audit(root, verbose=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=str(Path(__file__).resolve().parent.parent),
-                        help="repository root containing 4th/baku.4th")
+                        help="repository root containing 4th/baku.4th and 4th/start.4th")
     parser.add_argument("--verbose", action="store_true",
                         help="also list Baku-defined words")
     args = parser.parse_args()
