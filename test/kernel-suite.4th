@@ -134,11 +134,11 @@ baku-suite-bind-home
 : baku-suite-failed ( -- n )
 	s" test-harness.*failed*" baku-intern baku-suite-counter ;
 
-\ Baseline from the pinned release and this runtime.  The pass count must not
-\ drop and the fail count must not rise; the five named failures are recorded in
-\ .ralph/IMPLEMENTATION_PLAN.md.
-149 constant baku-suite-expected-passed
-5 constant baku-suite-expected-failed
+\ Baseline after the type special-form fix (commit 85f3850): the five former
+\ compile failures now pass, so the pass count must not drop and the fail count
+\ must stay at zero.
+154 constant baku-suite-expected-passed
+0 constant baku-suite-expected-failed
 
 : baku-suite-check ( -- )
 	baku-suite-passed baku-suite-expected-passed < if
