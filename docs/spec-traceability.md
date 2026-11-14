@@ -71,10 +71,13 @@ trigger collection. If the chosen bootstrap mode uses the collector, a forced co
 during boot preserves all boot globals and the reader's live forms; if it is non-GC, the
 same forced collection runs after boot once the collector exists (M8).
 
-Tests: `baku_kernel-suite_gforth`, `baku_gc-mode_gforth`, `baku_gc_gforth`
+Tests: `baku_boot-native_gforth`, `baku_kernel-suite_gforth`, `baku_gc-mode_gforth`,
+`baku_gc_gforth`
 
-Evidence: Non-GC is the boot mode; the kernel suite boots and initialises under the
-collector, and the GC tests prove roots survive collections.
+Evidence: Boot-native proves the explicit root registry, the function/global bucket
+tables and the stack-scan adapter exist before the loader runs, then forces a collection
+after the non-GC boot and checks the boot globals, a live reader form and native
+closures survive it.
 
 ### `bootstrap-and-repl#3`
 
@@ -394,9 +397,11 @@ Non-GC memory is created during bootstrap, before the GC exists. Bootstrap creat
 root set. Roots are the only non-GC memory allowed to hold GC references, and the GC
 scans and updates them.
 
-Tests: `baku_gc_gforth`, `baku_gc-mode_gforth`, `baku_kernel-suite_gforth`
+Tests: `baku_boot-native_gforth`, `baku_gc_gforth`, `baku_gc-mode_gforth`,
+`baku_kernel-suite_gforth`
 
-Evidence: Roots are created during bootstrap and traced across collections.
+Evidence: Roots are created before the loader runs and traced across the forced
+collection after the non-GC boot.
 
 ### `contract#statement-13`
 

@@ -92,9 +92,12 @@ COVERAGE = {
         "reaches a test marker without a Forth exception.",
     ),
     "bootstrap-and-repl#2": (
-        "baku_kernel-suite_gforth, baku_gc-mode_gforth, baku_gc_gforth",
-        "Non-GC is the boot mode; the kernel suite boots and initialises under "
-        "the collector, and the GC tests prove roots survive collections.",
+        "baku_boot-native_gforth, baku_kernel-suite_gforth, "
+        "baku_gc-mode_gforth, baku_gc_gforth",
+        "Boot-native proves the explicit root registry, the function/global "
+        "bucket tables and the stack-scan adapter exist before the loader runs, "
+        "then forces a collection after the non-GC boot and checks the boot "
+        "globals, a live reader form and native closures survive it.",
     ),
     "bootstrap-and-repl#3": (
         "baku_repl_gforth, baku_no_build",
@@ -266,8 +269,10 @@ COVERAGE = {
         "Activation and move rules are enforced with catchable errors.",
     ),
     "contract#statement-12": (
-        "baku_gc_gforth, baku_gc-mode_gforth, baku_kernel-suite_gforth",
-        "Roots are created during bootstrap and traced across collections.",
+        "baku_boot-native_gforth, baku_gc_gforth, baku_gc-mode_gforth, "
+        "baku_kernel-suite_gforth",
+        "Roots are created before the loader runs and traced across the forced "
+        "collection after the non-GC boot.",
     ),
     "contract#statement-13": (
         "baku_region_audit, baku_region_audit_selftest",
