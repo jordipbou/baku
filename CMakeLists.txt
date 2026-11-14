@@ -104,6 +104,21 @@ add_test(NAME baku_provenance_audit_selftest
 		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/provenance-audit-selftest.cmake)
 
+# The project entry's Links section is part of the requirement source.  The
+# audit extracts every link from the entry, requires it to resolve (or to carry
+# a reviewed dated offline acceptance), and checks the generated record against
+# the entry so an added, removed or reordered link cannot pass silently.  It
+# performs live HTTP requests, so an offline machine must record the accepted
+# links explicitly in the tool.
+add_test(NAME baku_link_audit
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/link-audit.py
+		--root ${CMAKE_CURRENT_SOURCE_DIR} --check)
+add_test(NAME baku_link_audit_selftest
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/link-audit.py --self-test)
+set_tests_properties(baku_link_audit PROPERTIES TIMEOUT 600)
+
 # The primitive manifest is generated from the parsed kernel corpus and the
 # baku-defprim registrations.  The check fails on a stale manifest, an
 # unclassified applied symbol, or a registered primitive with no application.

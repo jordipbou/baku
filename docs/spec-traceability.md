@@ -503,10 +503,11 @@ through one include line.
 
 Every link in `proj.baku.org` resolves to content that exists.
 
-Tests: none
+Tests: `baku_link_audit`, `baku_link_audit_selftest`
 
-Evidence: 2026-11-14: the sandbox is offline, so the proj.baku.org link set cannot be
-fetched; resolving those links is the separate M10 item.
+Evidence: The audit extracts every link from proj.baku.org and requires each to be
+reachable or to carry a reviewed dated offline acceptance; its self-test proves a
+missing, extra, dangling or unreviewed link fails.
 
 ### `documentation#2`
 

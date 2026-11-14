@@ -396,7 +396,7 @@ Host-side checks that do not need a Forth target:
 
 ```sh
 ctest --test-dir build -C Debug -R '^baku_(kernel_digest|tests_digest|release_asset)' --output-on-failure
-ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|provenance_audit|primitive_manifest)' --output-on-failure
+ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|provenance_audit|link_audit|primitive_manifest)' --output-on-failure
 ```
 
 `tools/ans-audit.py` follows `4th/baku.4th` and maps every external word to its
@@ -428,6 +428,16 @@ in turn and requires the audit to fail. `test/release-asset.cmake` extracts the
 vendored tarball and re-runs the tree-digest verifier on both extracted trees,
 so the extracted bytes are proved against the artifact without a download while
 the digest tests above check the trees at rest.
+
+`tools/link-audit.py` treats the entry's `Links` section as requirement input,
+not prose. It extracts every link from `proj.baku.org`, requires each to resolve
+after redirects, and writes `docs/link-status.md` with the HTTP result. The
+check also compares that record with the entry, so an added, removed, reordered
+or dangling link fails instead of being ignored. The audit performs live HTTP
+requests; a link that cannot be verified from the environment must appear in the
+tool's reviewed `OFFLINE_ACCEPTED` table with a date and reason. Its self-test
+injects a stale record, an extra row, a dangling link and an unreviewed
+acceptance, and requires each to fail.
 
 ## Licensing and kernel provenance
 

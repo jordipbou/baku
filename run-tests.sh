@@ -138,6 +138,19 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side proj.baku.org link audit and its deliberate-failure self-test:
+# every link in the requirement source must resolve or carry a reviewed dated
+# offline acceptance, and the generated record must match the entry exactly.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_link_audit' \
+		--output-on-failure; then
+		echo "BAKU-LINK-AUDIT PASS"
+	else
+		echo "BAKU-LINK-AUDIT FAIL" >&2
+		fail=1
+	fi
+fi
+
 # Host-side cross-region store audit and its deliberate-failure self-test.
 # Every raw address store in the shipped tree must be reviewed; object payload
 # stores stay in the value layer while the checked store is deferred.
