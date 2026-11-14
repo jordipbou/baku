@@ -113,6 +113,19 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side licensing and kernel-provenance audit and its deliberate-failure
+# self-test: both licence texts, the pinned release metadata and the README
+# references must stay complete and consistent.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_provenance_audit' \
+		--output-on-failure; then
+		echo "BAKU-PROVENANCE-AUDIT PASS"
+	else
+		echo "BAKU-PROVENANCE-AUDIT FAIL" >&2
+		fail=1
+	fi
+fi
+
 # Host-side cross-region store audit and its deliberate-failure self-test.
 # Every raw address store in the shipped tree must be reviewed; object payload
 # stores stay in the value layer while the checked store is deferred.

@@ -386,7 +386,7 @@ Host-side checks that do not need a Forth target:
 
 ```sh
 ctest --test-dir build -C Debug -R '^baku_(kernel_digest|tests_digest)' --output-on-failure
-ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|primitive_manifest)' --output-on-failure
+ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|provenance_audit|primitive_manifest)' --output-on-failure
 ```
 
 `tools/ans-audit.py` follows `4th/baku.4th` and maps every external word to its
@@ -410,6 +410,14 @@ injects a raw cons-payload store in the compiler and an extra store in a
 reviewed writer; both must be reported, while a dictionary-cell store still
 passes. This is the executable form of the deferred checked-store rule.
 
+`tools/provenance-audit.py` checks the licence and provenance obligation: the
+MIT repository licence, the BSD 3-Clause kernel licence, the pinned release
+identity recorded in both provenance files, and the README references to both.
+Its self-test corrupts each of those in turn and requires the audit to fail.
+The asset tarball is not vendored, so the audit pins its recorded SHA-256 but
+cannot re-hash it offline; the extracted tree digests are recomputed from the
+vendored bytes by the digest tests above.
+
 ## Licensing and kernel provenance
 
 Baku is MIT-licensed; see [`LICENSE`](LICENSE). The vendored Shen kernel is
@@ -424,8 +432,9 @@ The official test suite is vendored verbatim beside it under
 `vendor/shen-43.2/TESTS.md`. Do not edit either tree; a boot failure is fixed in
 Baku's reader, executor or primitives, never in a kernel file. The tree digests
 prove the bytes at rest; `tools/vendor-audit.py` proves shipped Forth has no
-write or replacement path aimed at them, and the no-build test re-digests the
-copied corpus after a full boot.
+write or replacement path aimed at them, `tools/provenance-audit.py` proves the
+licence and metadata obligation, and the no-build test re-digests the copied
+corpus after a full boot.
 
 Recompute both tree digests with the same verifier:
 

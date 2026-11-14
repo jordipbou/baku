@@ -90,6 +90,20 @@ add_test(NAME baku_region_audit_selftest
 		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/region-audit-selftest.cmake)
 
+# Licensing and kernel provenance are a requirement, not prose: the audit
+# checks both licence texts, the pinned release metadata and the README
+# references.  The tree digests above still verify the vendored bytes.
+add_test(NAME baku_provenance_audit
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/provenance-audit.py
+		--root ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME baku_provenance_audit_selftest
+	COMMAND ${CMAKE_COMMAND}
+		-DPYTHON3_EXECUTABLE=${PYTHON3_EXECUTABLE}
+		-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/provenance-audit-selftest.cmake)
+
 # The primitive manifest is generated from the parsed kernel corpus and the
 # baku-defprim registrations.  The check fails on a stale manifest, an
 # unclassified applied symbol, or a registered primitive with no application.
