@@ -89,6 +89,18 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side check of the vendored release tarball: its official checksum and
+# the two extracted tree digests, plus a deliberate-corruption self-test.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_release_asset' \
+		--output-on-failure; then
+		echo "BAKU-RELEASE-ASSET PASS"
+	else
+		echo "BAKU-RELEASE-ASSET FAIL" >&2
+		fail=1
+	fi
+fi
+
 # Host-side ANS Forth 2012 audit and its deliberate-failure self-test.
 if [ "$fail" -eq 0 ]; then
 	if ctest --test-dir build -C Debug -R '^baku_ans_audit' \

@@ -628,19 +628,22 @@ A checksum check reproduces
 `ShenOSKernel-43.2.tar.gz`, and a recorded digest of the extracted `klambda/` tree
 matches the vendored bytes.
 
-Tests: `baku_provenance_audit`, `baku_kernel_digest`
+Tests: `baku_release_asset`, `baku_release_asset_selftest`, `baku_provenance_audit`,
+`baku_kernel_digest`
 
-Evidence: The provenance audit pins the release asset SHA-256; the kernel digest
-recomputes the extracted tree bytes.
+Evidence: The release-asset check recomputes the vendored tarball's official SHA-256 and
+re-runs the tree digest on its extracted klambda/ tree; the provenance audit re-hashes
+the asset and the kernel digest checks the tree at rest.
 
 ### `kernel-provenance#2`
 
 `git diff` against the vendored upstream tree is empty.
 
-Tests: `baku_kernel_digest`
+Tests: `baku_release_asset`, `baku_kernel_digest`
 
-Evidence: No upstream checkout exists in this sandbox; the recomputed tree digest is the
-offline proof that the vendored bytes are unmodified.
+Evidence: No upstream checkout exists in this sandbox; the vendored tarball is extracted
+and both extracted trees must match the recorded digests, the offline equivalent of an
+empty upstream diff, while the tree digest checks the vendored bytes at rest.
 
 ### `kernel-provenance#3`
 

@@ -395,7 +395,7 @@ time and is the single target list that `run-tests.sh` reads.
 Host-side checks that do not need a Forth target:
 
 ```sh
-ctest --test-dir build -C Debug -R '^baku_(kernel_digest|tests_digest)' --output-on-failure
+ctest --test-dir build -C Debug -R '^baku_(kernel_digest|tests_digest|release_asset)' --output-on-failure
 ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|provenance_audit|primitive_manifest)' --output-on-failure
 ```
 
@@ -422,11 +422,12 @@ passes. This is the executable form of the deferred checked-store rule.
 
 `tools/provenance-audit.py` checks the licence and provenance obligation: the
 MIT repository licence, the BSD 3-Clause kernel licence, the pinned release
-identity recorded in both provenance files, and the README references to both.
-Its self-test corrupts each of those in turn and requires the audit to fail.
-The asset tarball is not vendored, so the audit pins its recorded SHA-256 but
-cannot re-hash it offline; the extracted tree digests are recomputed from the
-vendored bytes by the digest tests above.
+identity recorded in both provenance files, the vendored release tarball's
+SHA-256, and the README references to both. Its self-test corrupts each of those
+in turn and requires the audit to fail. `test/release-asset.cmake` extracts the
+vendored tarball and re-runs the tree-digest verifier on both extracted trees,
+so the extracted bytes are proved against the artifact without a download while
+the digest tests above check the trees at rest.
 
 ## Licensing and kernel provenance
 
@@ -439,12 +440,15 @@ The kernel under `vendor/shen-43.2/klambda/` is the unmodified official
 tag, commit, asset URL, asset SHA-256, extracted-tree digest and vendoring date.
 The official test suite is vendored verbatim beside it under
 `vendor/shen-43.2/tests/`, with the same provenance in
-`vendor/shen-43.2/TESTS.md`. Do not edit either tree; a boot failure is fixed in
-Baku's reader, executor or primitives, never in a kernel file. The tree digests
-prove the bytes at rest; `tools/vendor-audit.py` proves shipped Forth has no
-write or replacement path aimed at them, `tools/provenance-audit.py` proves the
-licence and metadata obligation, and the no-build test re-digests the copied
-corpus after a full boot.
+`vendor/shen-43.2/TESTS.md`. The unmodified release tarball
+`vendor/shen-43.2/ShenOSKernel-43.2.tar.gz` is vendored with them so the checksum
+check runs offline. Do not edit either tree; a boot failure is fixed in Baku's
+reader, executor or primitives, never in a kernel file. The tree digests prove
+the bytes at rest, `test/release-asset.cmake` proves the extracted trees are the
+tarball's trees, `tools/vendor-audit.py` proves shipped Forth has no write or
+replacement path aimed at them, `tools/provenance-audit.py` proves the licence
+and metadata obligation, and the no-build test re-digests the copied corpus
+after a full boot.
 
 Recompute both tree digests with the same verifier:
 

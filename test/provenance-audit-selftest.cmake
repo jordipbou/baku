@@ -22,7 +22,7 @@ endforeach()
 foreach(copied LICENSE README.md)
 	file(COPY "${SOURCE_DIR}/${copied}" DESTINATION "${base}")
 endforeach()
-foreach(copied README.md TESTS.md LICENSE.txt)
+foreach(copied README.md TESTS.md LICENSE.txt ShenOSKernel-43.2.tar.gz)
 	file(COPY "${SOURCE_DIR}/vendor/shen-43.2/${copied}"
 		DESTINATION "${base}/vendor/shen-43.2")
 endforeach()
@@ -152,6 +152,19 @@ if(NOT audit_full MATCHES "PROVENANCE-AUDIT FAIL"
 		OR NOT audit_full MATCHES "expected 23 KLambda files")
 	message(FATAL_ERROR
 		"provenance-audit-selftest: missing KLambda file was not reported\n${audit_full}")
+endif()
+
+# 10. A modified release tarball must fail the recomputed checksum.
+file(COPY "${base}" DESTINATION "${work}/release-asset")
+file(APPEND
+	"${work}/release-asset/base/vendor/shen-43.2/ShenOSKernel-43.2.tar.gz"
+	"\n")
+set(case_root "${work}/release-asset/base")
+run_audit("${case_root}" 1 "modified release asset")
+if(NOT audit_full MATCHES "PROVENANCE-AUDIT FAIL"
+		OR NOT audit_full MATCHES "asset SHA-256 is")
+	message(FATAL_ERROR
+		"provenance-audit-selftest: modified release asset was not reported\n${audit_full}")
 endif()
 
 message(STATUS "PROVENANCE-AUDIT-SELFTEST PASS")

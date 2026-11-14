@@ -156,6 +156,21 @@ add_test(NAME baku_tests_digest_tamper
 		-DLABEL=BAKU-TESTS-DIGEST
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/kernel-digest-selftest.cmake)
 
+# The official release tarball is vendored beside the extracted trees so the
+# checksum check runs offline.  It recomputes the asset SHA-256, extracts the
+# tarball and re-verifies both extracted trees with the one digest verifier.
+# The self-test corrupts a copy and requires the checksum check to fail.
+add_test(NAME baku_release_asset
+	COMMAND ${CMAKE_COMMAND}
+		-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/release-asset.cmake)
+add_test(NAME baku_release_asset_selftest
+	COMMAND ${CMAKE_COMMAND}
+		-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/release-asset-selftest.cmake)
+
 file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
 # These tests initialise the whole kernel and/or need GC stack roots; see the
 # exclusions below.  kernel-suite boots under the collector, which Sloth cannot

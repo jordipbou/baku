@@ -388,14 +388,19 @@ COVERAGE = {
 
     # kernel-provenance.md
     "kernel-provenance#1": (
+        "baku_release_asset, baku_release_asset_selftest, "
         "baku_provenance_audit, baku_kernel_digest",
-        "The provenance audit pins the release asset SHA-256; the kernel "
-        "digest recomputes the extracted tree bytes.",
+        "The release-asset check recomputes the vendored tarball's official "
+        "SHA-256 and re-runs the tree digest on its extracted klambda/ tree; "
+        "the provenance audit re-hashes the asset and the kernel digest checks "
+        "the tree at rest.",
     ),
     "kernel-provenance#2": (
-        "baku_kernel_digest",
-        "No upstream checkout exists in this sandbox; the recomputed tree "
-        "digest is the offline proof that the vendored bytes are unmodified.",
+        "baku_release_asset, baku_kernel_digest",
+        "No upstream checkout exists in this sandbox; the vendored tarball is "
+        "extracted and both extracted trees must match the recorded digests, "
+        "the offline equivalent of an empty upstream diff, while the tree "
+        "digest checks the vendored bytes at rest.",
     ),
     "kernel-provenance#3": (
         "baku_reader_sloth, baku_reader_gforth, baku_boot_sloth, "
@@ -770,6 +775,7 @@ README_HEADINGS = (
 RUNNER_MARKERS = (
     "BAKU-KERNEL-DIGEST",
     "BAKU-TESTS-DIGEST",
+    "BAKU-RELEASE-ASSET",
     "BAKU-ANS-AUDIT",
     "BAKU-VENDOR-AUDIT",
     "BAKU-PROVENANCE-AUDIT",

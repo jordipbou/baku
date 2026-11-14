@@ -16,15 +16,18 @@ Checks:
   * those values still match the release pinned by the provenance requirement,
     and each provenance file records its own 64-hex tree digest;
   * the top-level README names both licence files and both provenance files and
-    states the MIT and BSD 3-Clause terms.
+    states the MIT and BSD 3-Clause terms;
+  * the official release tarball is vendored beside the extracted trees and its
+    bytes reproduce the pinned SHA-256.
 
-The asset tarball is not vendored, so the audit pins its recorded SHA-256 but
-cannot re-hash it offline.  The extracted tree digests are recomputed by
-baku_kernel_digest and baku_tests_digest; this audit does not duplicate that
-digest logic.
+The release tarball is vendored, so this audit re-hashes it offline.  The
+extracted tree digests are recomputed by baku_kernel_digest and baku_tests_digest,
+and baku_release_asset extracts the tarball and re-runs those digests; this audit
+does not duplicate that tree-digest logic.
 """
 
 import argparse
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -39,6 +42,8 @@ PIN = {
              "shen-43.2/ShenOSKernel-43.2.tar.gz",
     "Asset SHA-256": "23c71508f0de24785e1f127ea4fab440081904d81c463090bc642ee840417f32",
 }
+
+ASSET_NAME = PIN["Asset"].rsplit("/", 1)[-1]
 
 METADATA_KEYS = [
     "Project", "Upstream", "Release", "Tag", "Commit", "Asset",
@@ -156,7 +161,7 @@ def check_vendor_readmes(root, violations):
         violations.append(("vendor/shen-43.2/README.md", "missing provenance"))
     else:
         text = kernel.read_text(encoding="utf-8")
-        for phrase in ("BSD 3-Clause", "LICENSE.txt", "MIT"):
+        for phrase in ("BSD 3-Clause", "LICENSE.txt", "MIT", ASSET_NAME):
             if phrase not in text:
                 violations.append(
                     ("vendor/shen-43.2/README.md",
@@ -167,11 +172,25 @@ def check_vendor_readmes(root, violations):
         violations.append(("vendor/shen-43.2/TESTS.md", "missing provenance"))
     else:
         text = suite.read_text(encoding="utf-8")
-        for phrase in ("BSD 3-Clause", "LICENSE.txt"):
+        for phrase in ("BSD 3-Clause", "LICENSE.txt", ASSET_NAME):
             if phrase not in text:
                 violations.append(
                     ("vendor/shen-43.2/TESTS.md",
                      f"missing licence reference {phrase!r}"))
+
+
+def check_release_asset(root, violations):
+    asset = root / "vendor/shen-43.2" / ASSET_NAME
+    label = f"vendor/shen-43.2/{ASSET_NAME}"
+    if not asset.is_file():
+        violations.append((label, "missing vendored release asset"))
+        return
+    digest = hashlib.sha256(asset.read_bytes()).hexdigest()
+    if digest != PIN["Asset SHA-256"]:
+        violations.append(
+            (label,
+             f"asset SHA-256 is {digest!r}, expected the pinned "
+             f"{PIN['Asset SHA-256']!r}"))
 
 
 def check_trees(root, violations):
@@ -219,6 +238,7 @@ def audit(root, verbose=False):
     check_licenses(root, violations)
     check_readme(root, violations)
     check_vendor_readmes(root, violations)
+    check_release_asset(root, violations)
     check_trees(root, violations)
 
     print("Licensing and kernel provenance audit")
@@ -228,6 +248,7 @@ def audit(root, verbose=False):
     print(f"  pinned release: {PIN['Release']} ({PIN['Tag']})")
     print(f"  pinned commit: {PIN['Commit']}")
     print(f"  pinned asset SHA-256: {PIN['Asset SHA-256']}")
+    print(f"  vendored release asset: vendor/shen-43.2/{ASSET_NAME}")
     print(f"  KLambda tree digest: {kernel_digest}")
     print(f"  test-suite tree digest: {suite_digest}")
     if verbose:

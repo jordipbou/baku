@@ -16,6 +16,14 @@ Shen OS Kernel release 43.2.
 The `klambda/` files are the 23 `.kl` files shipped in `ShenOSKernel-43.2/klambda/`.
 They are copied verbatim; do not edit them. `LICENSE.txt` is the upstream license.
 
+## Release asset
+
+`ShenOSKernel-43.2.tar.gz` beside this file is the unmodified official release
+tarball. It is vendored so the checksum check runs offline: `test/release-asset.cmake`
+recomputes its SHA-256, extracts it, and re-runs the tree-digest verifier on the
+extracted `klambda/` and `tests/` trees. The asset hash and the extracted tree
+digests therefore prove the vendored bytes from the repository alone.
+
 ## Tree digest
 
 The tree digest covers the extracted `klambda/` bytes, so the vendored tree can be

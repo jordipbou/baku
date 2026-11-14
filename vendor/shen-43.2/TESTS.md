@@ -23,6 +23,12 @@ kernel suite is `kerneltests.shen`; `runme.shen` loads `harness.shen` and then
 The suite uses `y-or-n?` when a check fails, so a headless run must supply stdin
 or treat the prompt as a failure boundary.
 
+The official release tarball `ShenOSKernel-43.2.tar.gz` is vendored beside the
+extracted trees. `test/release-asset.cmake` recomputes its SHA-256, extracts it,
+and re-runs the tree-digest verifier on the extracted `klambda/` and `tests/`
+trees, so the checksum check works offline and proves these files are the
+tarball's files.
+
 ## Tree digest
 
 The tree digest covers the extracted `tests/` bytes, so the vendored tree can be
