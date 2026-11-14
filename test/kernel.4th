@@ -283,4 +283,14 @@ test-writer-corpus-backslash
 s" baku-writer.tmp" delete-file 0= 41 check
 test-writer-found @ 4 = 42 check
 
+\ ---------------------------------------------------------------------------
+\ Public primitive arities.  The kernel installs these from its arity table, so
+\ the Shen-visible contract is checked at the kernel boundary, not by the host
+\ registration alone.
+\ ---------------------------------------------------------------------------
+
+s" (arity char-stream?)" ev baku-fixnum-value 1 43 check-num
+s" (arity read-unit-string)" ev baku-fixnum-value 1 44 check-num
+s" (arity write-string)" ev baku-fixnum-value 2 45 check-num
+
 ." BAKU-TEST-DONE" cr

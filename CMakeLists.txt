@@ -247,6 +247,22 @@ add_test(NAME baku_differential_targets
 		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/differential-targets.cmake)
 
+# Cross-target conformance: the portability fixture must produce the same stdout
+# through BAKU-TEST-DONE on both targets.  It reuses the differential comparator
+# in prefix mode, so launcher chatter after the marker is normalised away and
+# both runs must still exit zero and reach the marker.
+add_test(NAME baku_conformance_targets
+	COMMAND ${CMAKE_COMMAND}
+		-DSLOTH=$<TARGET_FILE:sloth>
+		-DGFORTH=${GFORTH_EXECUTABLE}
+		"-DGFORTH_FLAGS=-m 64M"
+		-DTEST_FILE=${CMAKE_CURRENT_SOURCE_DIR}/test/conformance.4th
+		-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
+		-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+		-DMODE=prefix
+		-DLABEL=CONFORMANCE
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/differential-targets.cmake)
+
 # The standard-input end test is the only test that needs an empty stdin, so it
 # is registered with the runner's INPUT_FILE instead of the glob above.  gforth
 # is the target whose KEY reports end of input (see the test file).
@@ -259,3 +275,35 @@ add_test(NAME baku_repl-eof_gforth
 		-DWORKING_DIRECTORY=${BAKU_WORKING_DIRECTORY}
 		-DINPUT_FILE=${CMAKE_CURRENT_SOURCE_DIR}/test/empty.stdin
 		-P ${BAKU_RUNNER})
+
+# Specification-to-test traceability is a requirement of the test strategy, not
+# prose: the audit maps every Ralph spec criterion to a registered test or a
+# dated waiver.  The specs live beside the checkout in the Ralph workspace, so
+# the directory is a configure-time input.  The registered-test list is written
+# below, after every add_test, so the audit resolves claims against the real
+# CTest set instead of a copy of the registration rules.
+set(BAKU_SPECS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.ralph/specs" CACHE PATH
+	"Ralph specification directory for traceability")
+set(BAKU_AGENTS_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../.ralph/AGENTS.md" CACHE FILEPATH
+	"Ralph AGENTS.md scanned for status prose")
+set(BAKU_REGISTERED_TESTS_FILE ${CMAKE_CURRENT_BINARY_DIR}/baku-tests.txt)
+
+add_test(NAME baku_spec_traceability
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/traceability-audit.py
+		--check
+		--root ${CMAKE_CURRENT_SOURCE_DIR}
+		--specs ${BAKU_SPECS_DIR}
+		--tests-file ${BAKU_REGISTERED_TESTS_FILE}
+		--agents ${BAKU_AGENTS_FILE})
+add_test(NAME baku_spec_traceability_selftest
+	COMMAND ${PYTHON3_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/tools/traceability-audit.py --self-test)
+
+get_property(BAKU_DIRECTORY_TESTS DIRECTORY PROPERTY TESTS)
+list(FILTER BAKU_DIRECTORY_TESTS INCLUDE REGEX "^baku_")
+list(SORT BAKU_DIRECTORY_TESTS)
+file(WRITE ${BAKU_REGISTERED_TESTS_FILE} "")
+foreach(test_name IN LISTS BAKU_DIRECTORY_TESTS)
+	file(APPEND ${BAKU_REGISTERED_TESTS_FILE} "${test_name}\n")
+endforeach()

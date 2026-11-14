@@ -28,6 +28,7 @@ The generated primitive-to-ANS mapping is in
 - [Tooling](#tooling)
 - [Licensing and kernel provenance](#licensing-and-kernel-provenance)
 - [Design decisions and rejected alternatives](#design-decisions-and-rejected-alternatives)
+- [Specification to test traceability](#specification-to-test-traceability)
 
 ## Using the sources
 
@@ -344,10 +345,19 @@ The layers and their tests:
   structural equality, formatted bytes and error classes compared;
 - `test/conformance.4th`, `test/differential.4th`,
   `test/differential-targets.cmake`: a fixed program set on both targets with
-  byte-identical marked output;
+  byte-identical output (marked lines for the differential, everything through
+  `BAKU-TEST-DONE` for the conformance fixture);
 - `test/boot.4th`, `test/boot-native.4th`, `test/repl.4th`, `test/repl-eof.4th`,
   `test/kernel.4th`: the load manifest, both initialisers, the top level and
   kernel-defined behaviour after boot.
+
+`docs/spec-traceability.md` maps every specification acceptance criterion and
+every contract entry statement to a registered test or a dated waiver.
+`tools/traceability-audit.py --check` is the gate: it fails on an orphan
+criterion, a stale row, an unknown test name or a stale document, and it also
+executes the documentation criteria (README sections, rejected alternatives,
+runner markers and no status prose in `.ralph/AGENTS.md`). Regenerate the
+document with `--write` after changing a spec or the coverage table.
 
 The official Shen 43.2 suite is vendored under `vendor/shen-43.2/tests` and run
 by `test/kernel-suite.4th`. It is Shen source for a booted top level: the test
@@ -509,3 +519,13 @@ gate covers the value, memory, reader, front-end, evaluator, native, arena, GC,
 mode, differential, boot and top level layers on Sloth and gforth. Current counts
 and remaining work belong to the development plan, not to this README.
 
+## Specification to test traceability
+
+The test strategy requires every acceptance criterion to have a named test.
+`docs/spec-traceability.md` is generated from `.ralph/specs/*.md` and the
+reviewed coverage table in `tools/traceability-audit.py`; do not hand-edit it.
+A criterion is covered by registered CTest names or by a dated waiver, and the
+audit resolves every name against `build/baku-tests.txt`, which CMake writes
+from the real CTest registrations. This keeps one source of truth for the tests
+and one for the mapping, and turns a renamed test or a new spec bullet into a
+gate failure instead of silent drift.

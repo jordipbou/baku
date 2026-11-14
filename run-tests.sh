@@ -150,6 +150,19 @@ if [ "$fail" -eq 0 ]; then
 	fi
 fi
 
+# Host-side specification-to-test traceability and its deliberate-failure
+# self-test: every Ralph spec criterion names a registered test or a dated
+# waiver, and the generated document is current.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_spec_traceability' \
+		--output-on-failure; then
+		echo "BAKU-TRACEABILITY PASS"
+	else
+		echo "BAKU-TRACEABILITY FAIL" >&2
+		fail=1
+	fi
+fi
+
 # Host-side one-line user path: a copied checkout with no build machinery boots
 # the kernel through 4th/start.4th and reaches the Shen top level.
 if [ "$fail" -eq 0 ]; then
@@ -170,6 +183,18 @@ if [ "$fail" -eq 0 ]; then
 		echo "BAKU-DIFFERENTIAL PASS"
 	else
 		echo "BAKU-DIFFERENTIAL FAIL" >&2
+		fail=1
+	fi
+fi
+
+# Cross-target conformance: the reusable portability fixture must produce the
+# same stdout through BAKU-TEST-DONE on Sloth and gforth.
+if [ "$fail" -eq 0 ]; then
+	if ctest --test-dir build -C Debug -R '^baku_conformance_targets$' \
+		--output-on-failure; then
+		echo "BAKU-CONFORMANCE PASS"
+	else
+		echo "BAKU-CONFORMANCE FAIL" >&2
 		fail=1
 	fi
 fi
