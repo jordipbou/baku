@@ -32,6 +32,7 @@
 
 create baku-repl-line-buf baku-repl-line-max allot
 variable baku-repl-acc-len
+variable baku-repl-echo
 
 : baku-eval-form ( form -- value )
 	s" eval-kl" baku-intern baku-fn-lookup 0= if
@@ -63,20 +64,35 @@ variable baku-repl-acc-len
 	then ;
 
 \ Append one line to the accumulator and report whether the input ended.  A
-\ newline is kept as the separator between continued lines; a CR is dropped so
-\ CRLF input behaves like LF input.
+\ newline is kept as the separator between continued lines; CR also ends a line
+\ so raw terminals and CRLF files behave like LF input.  The interactive path
+\ echoes printable bytes and handles backspace, because KEY does not echo on the
+\ supported targets.
 : baku-repl-read-line ( stream -- eof? )
 	begin
 		dup baku-repl-byte
 		dup 0< if
 			drop true exit
 		then
-		dup 10 = if
-			drop 10 baku-repl-acc-put false exit
+		dup 10 = over 13 = or if
+			drop 10 baku-repl-acc-put
+			baku-repl-echo @ if 10 emit then
+			false exit
 		then
-		dup 13 = if
+		dup 8 = over 127 = or if
 			drop
+			baku-repl-echo @ if
+				baku-repl-acc-len @ 0> if
+					-1 baku-repl-acc-len +!
+					8 emit bl emit 8 emit
+				then
+			else
+				8 baku-repl-acc-put
+			then
 		else
+			baku-repl-echo @ if
+				dup 32 >= over 126 <= and if dup emit then
+			then
 			baku-repl-acc-put
 		then
 	again ;
@@ -146,6 +162,7 @@ variable baku-repl-acc-len
 \ closed even when a structural error (for example a line over the buffer limit)
 \ escapes the loop.
 : baku-repl-file ( c-addr u -- )
+	false baku-repl-echo !
 	baku-string s" in" baku-intern baku-prim-open
 	dup false ['] baku-repl-stream catch dup if
 		>r baku-prim-close drop r> throw
@@ -156,6 +173,7 @@ variable baku-repl-acc-len
 \ Interactive mode: prompt, read the standard input, evaluate and display
 \ errors.  End of input returns cleanly.
 : baku-repl ( -- )
+	true baku-repl-echo !
 	baku-stdin-stream true baku-repl-stream ;
 
 \ ---------------------------------------------------------------------------
