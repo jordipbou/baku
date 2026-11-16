@@ -125,7 +125,7 @@ consume the earlier representation.
 | `4th/probe.4th` | Startup probe for the required ANS Forth 2012 wordsets |
 | `4th/value.4th` | Tagged values, region map, uniform object headers, constructors and accessors |
 | `4th/gc.4th` | Cheney copying collector, roots and activation rules |
-| `4th/gc-stack.4th` | Target stack-root adapter; the only non-ANS word use, gated by `[DEFINED]` |
+| `4th/gc-stack.4th` | Data-stack root adapter; portable `DEPTH`/`>R`/`R>` scan |
 | `4th/arena.4th` | LIFO dictionary arenas released with `MARKER` |
 | `4th/reader.4th` | Streaming KLambda text reader |
 | `4th/frontend.4th` | Form validation, vector IR and shared tail-position analysis |
@@ -205,12 +205,12 @@ restores the GC heap and collection resumes.
 
 Roots are the only non-GC memory allowed to hold GC references. They are
 registered dictionary cells and ranges, the function and global tables (whose
-chains may live in non-GC memory), and the Forth data and return stacks. ANS
-Forth 2012 exposes no stack pointer, so `4th/gc-stack.4th` isolates the target
-words (`SP0`/`SP@`/`RP0`/`RP@` on gforth) behind `[DEFINED]`; a target without
-them keeps the default adapter and GC activation fails with the catchable
-`baku-gc-unsupported` instead of collecting with a missing root. The pinned Sloth
-takes that documented branch.
+chains may live in non-GC memory), and the Forth data stack. ANS Forth 2012
+exposes no stack pointer, so `4th/gc-stack.4th` walks the live data stack with
+`DEPTH` and `>R`/`R>`, which are ANS words. The return stack is not a root: GC
+mode keeps no GC reference on it when an allocation can run, so the collector
+never needs to reach it. The adapter therefore works on every ANS target and
+GC activation no longer has an unsupported branch.
 
 Arenas may hold GC references because every arena is freed before the GC moves
 or compacts; the GC must not hold references to arena objects. The checked store
@@ -370,9 +370,8 @@ The native non-GC boot keeps every allocation, so `test/boot-native.4th`,
 `test/kernel.4th` and `test/repl.4th` request a 512 MiB non-GC heap, a 4 MiB IR
 scratch and a 2 MiB reader scratch. They are gforth-only because Sloth's Debug
 native execution is too slow for the gate; the exclusion is explicit in
-`CMakeLists.txt`, not a silent skip. The collector tests run on both targets, but
-Sloth asserts the documented unsupported activation path because it exposes no
-stack pointers.
+`CMakeLists.txt`, not a silent skip. The collector tests run on both targets;
+the stack-scan adapter uses only ANS words, so Sloth exercises the real GC path.
 
 ## Tooling
 
@@ -400,9 +399,10 @@ ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|p
 ```
 
 `tools/ans-audit.py` follows `4th/baku.4th` and maps every external word to its
-ANS Forth 2012 wordset. It fails on any non-standard word except the two
-documented stack-pointer words isolated in `4th/gc-stack.4th`. This keeps the
-"completely ANS Forth 2012" claim executable rather than aspirational.
+ANS Forth 2012 wordset. It fails on any non-standard word; the GC stack-root
+adapter uses only `DEPTH` and `>R`/`R>`, so there are no portability exceptions.
+This keeps the "completely ANS Forth 2012" claim executable rather than
+aspirational.
 
 `tools/vendor-audit.py` uses the same shipped-file graph. It allows exactly one
 vendored path literal, the `BAKU-BOOT-DIR` read prefix in `4th/boot.4th`, and

@@ -12,13 +12,12 @@
 \   * explicitly registered dictionary cells and ranges;
 \   * the function and global variable tables, whose bucket chains may live in
 \     non-GC memory and still hold GC binding values;
-\   * the Forth data and return stacks, through a target stack-scan adapter.
+\   * the Forth data stack, through a portable stack-scan adapter.
 \
-\ No ANS Forth 2012 word exposes a stack pointer.  A target that has one binds
-\ BAKU-GC-SCAN-STACKS and BAKU-GC-STACK-SCAN? in 4th/gc-stack.4th; activation
-\ on a target without them fails with the catchable BAKU-GC-UNSUPPORTED code
-\ rather than silently ignoring a root set.  The stack adapter is the only
-\ place a non-ANS word is used, and it is gated by [DEFINED].
+\ ANS Forth 2012 exposes no stack pointer, so the adapter walks the live data
+\ stack with DEPTH and >R/R>.  The return stack is not a root: GC mode keeps no
+\ GC reference on it when an allocation can run, so the adapter never needs to
+\ reach it.  The adapter uses only ANS words and never fails activation.
 \
 \ Region detection stays exact: only the from-space is registered as a GC
 \ region.  The to-space is not a live region, so a pointer to it is never

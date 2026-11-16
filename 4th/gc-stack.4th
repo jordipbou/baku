@@ -1,35 +1,40 @@
-\ Target stack-root adapter for the Cheney collector.
+\ Data-stack root adapter for the Cheney collector.
 \
-\ The memory rules root the Forth data and return stacks, but ANS Forth 2012
-\ does not expose stack pointers.  This file is the one place a target word is
-\ used: gforth provides SP0/RP0 (the stack bases) and SP@/RP@ (the current
-\ pointers).  [DEFINED] gates the binding, so a target without them keeps the
-\ default no-op adapter and BAKU-GC-ACTIVATE raises BAKU-GC-UNSUPPORTED instead
-\ of running a collector that would miss a stack root.  The pinned Sloth exposes
-\ neither word and therefore reports GC as unsupported.
+\ The collector roots the Forth data stack.  ANS Forth 2012 exposes no stack
+\ pointer, so this adapter walks the live data stack with DEPTH and moves each
+\ cell through the return stack: >R and R> are the only operations needed to
+\ reach and replace every live cell.  Pushing all cells and popping them back
+\ reverses twice, so the stack order is preserved.
 \
-\ The addresses are compared before scanning because a stack may grow up or
-\ down.  Every cell in the live extent is offered to the root updater; a cell is
-\ changed only when it is a pointer into the from-space, so return addresses,
-\ loop control and immediates are left alone.
+\ The return stack is not scanned.  In GC mode no GC reference stays on the
+\ return stack when an allocation can run: 4th/eval.4th keeps interpreter state
+\ on the data stack or in registered roots, and the remaining >R uses hold a
+\ fixnum, a symbol or a dictionary address.  A collection therefore never has a
+\ return-stack root to update.
+\
+\ BEGIN ... WHILE ... REPEAT is used instead of DO ... LOOP: DO keeps its loop
+\ control on the return stack, underneath the moved cells.
+\
+\ If BAKU-GC-COPY throws during the scan, the CATCH in BAKU-GC-COLLECT restores
+\ the data-stack pointer to the catch point.  The slots already written hold
+\ updated values and the untouched slots hold the originals; the heap has not
+\ flipped, so both are valid.
 
-[DEFINED] sp0 [DEFINED] sp@ and [DEFINED] rp0 [DEFINED] rp@ and [IF]
+variable baku-gc-ds-total
+variable baku-gc-ds-count
 
-: baku-gc-stack-range ( start end -- )
-	2dup u> if swap then baku-gc-scan-range ;
+: baku-gc-scan-data-stack ( -- )
+	depth dup baku-gc-ds-total ! baku-gc-ds-count !
+	begin baku-gc-ds-count @ 0> while
+		>r -1 baku-gc-ds-count +!
+	repeat
+	baku-gc-ds-total @ baku-gc-ds-count !
+	begin baku-gc-ds-count @ 0> while
+		r> baku-gc-copy -1 baku-gc-ds-count +!
+	repeat ;
 
-: baku-gc-scan-stacks-real ( -- )
-	sp0 @ sp@ baku-gc-stack-range
-	rp0 @ rp@ baku-gc-stack-range ;
-
+: baku-gc-scan-stacks-real ( -- ) baku-gc-scan-data-stack ;
 : baku-gc-stack-scan-real ( -- flag ) true ;
-
-[ELSE]
-
-: baku-gc-scan-stacks-real ( -- ) ;
-: baku-gc-stack-scan-real ( -- flag ) false ;
-
-[THEN]
 
 ' baku-gc-scan-stacks-real is baku-gc-scan-stacks
 ' baku-gc-stack-scan-real is baku-gc-stack-scan?

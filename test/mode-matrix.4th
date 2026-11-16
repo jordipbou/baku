@@ -17,11 +17,9 @@
 \ non-GC baseline, no dictionary code may be generated, collections must occur,
 \ and the post-collection live heap must stay below the semispace.
 \
-\ The collector needs stack roots, which the pinned Sloth does not expose.  Its
-\ branch runs the non-GC and arena passes, then asserts activation is the
-\ documented catchable unsupported error, so the two available modes are still
-\ compared instead of skipped.  This is the same explicit capability branch as
-\ test/gc-mode.4th, not a silent skip.
+\ The collector runs on both targets: the stack-scan adapter uses only ANS
+\ words.  The GC pass therefore runs on Sloth and gforth instead of asserting a
+\ capability branch.
 \
 \ Results are projected to atoms because BAKU-PRIM-STR formats atoms only; the
 \ compound cases use structural equality.  A defun case installs the same source
@@ -281,18 +279,8 @@ variable matrix-call-len
 	matrix-pass-arena
 	matrix-pass-gc ;
 
-: matrix-unsupported ( -- )
-	matrix-pass-nongc
-	matrix-pass-arena
-	baku-mode baku-mode-nongc = 1031 check
-	131072 baku-gc-create
-	baku-gc-created? @ 1032 check
-	['] baku-gc-activate catch baku-gc-unsupported = 1033 check
-	baku-mode baku-mode-nongc = 1034 check
-	['] baku-gc-collect catch baku-gc-inactive = 1035 check ;
-
 : matrix-run ( -- )
-	baku-gc-stack-scan? if matrix-supported else matrix-unsupported then ;
+	matrix-supported ;
 
 matrix-run
 

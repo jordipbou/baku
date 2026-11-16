@@ -1,11 +1,9 @@
 \ Baku Cheney collector tests.
 \
-\ The collector only runs on a target whose stack-scan adapter found the Forth
-\ stack bases.  gforth has SP0/SP@/RP0/RP@; the pinned Sloth has neither, so its
-\ branch proves activation fails with the documented catchable error instead of
-\ silently missing a root.  The supported branch covers value tracing, cycles,
-\ shared tails, explicit roots, stack roots, table roots, code/closure roots,
-\ arena coexistence and a garbage stress loop.
+\ The collector runs on both targets: the stack-scan adapter uses only ANS
+\ words (DEPTH and >R/R> on the data stack).  The test covers value tracing,
+\ cycles, shared tails, explicit roots, stack roots, table roots, code/closure
+\ roots, arena coexistence and a garbage stress loop.
 
 [DEFINED] gforth
 [IF]
@@ -46,14 +44,6 @@ gc-holder 1 baku-gc-root+
 gc-arena-cons 1 baku-gc-root+
 gc-held 1 baku-gc-root+
 gc-pre-list 1 baku-gc-root+
-
-: gc-unsupported-test ( -- )
-	65536 baku-gc-create
-	baku-gc-created? @ 1 check
-	baku-gc-active? 0= 2 check
-	['] baku-gc-activate catch baku-gc-unsupported = 3 check
-	baku-gc-active? 0= 4 check
-	['] baku-gc-collect catch baku-gc-inactive = 5 check ;
 
 : gc-garbage ( n -- )
 	0 ?do
@@ -193,13 +183,44 @@ gc-pre-list 1 baku-gc-root+
 	gc-held @ 0 baku-vector@ baku-object? 0= 46 check
 	gc-held @ baku-vector? 47 check ;
 
+\ Every live data-stack cell is updated and the order is preserved.  This
+\ exercises the multi-cell path of the DEPTH/>R/R> scan, not just one value.
+: gc-data-stack-test ( -- )
+	baku-gc-collect
+	1 baku-fixnum 2 baku-fixnum baku-cons
+	3 baku-fixnum 4 baku-fixnum baku-cons
+	5 baku-fixnum 6 baku-fixnum baku-cons
+	baku-gc-collect
+	dup baku-hd baku-fixnum-value 5 = 48 check
+	dup baku-tl baku-fixnum-value 6 = 49 check
+	drop
+	dup baku-hd baku-fixnum-value 3 = 50 check
+	dup baku-tl baku-fixnum-value 4 = 51 check
+	drop
+	dup baku-hd baku-fixnum-value 1 = 52 check
+	baku-tl baku-fixnum-value 2 = 53 check ;
+
+\ Force the first allocation inside BAKU-GLOBAL-PREPEND to collect.  A filler
+\ vector leaves 16 bytes in the from-space, so the 24-byte cons cannot fit and
+\ the collector runs while the value being bound sits on the data stack.
+: gc-prepend-collect-test ( -- )
+	baku-gc-collect
+	s" gc-prepend-global" baku-intern gc-new-sym !
+	baku-gc-free? 24 - 8 / baku-vector drop
+	baku-gc-collections @ gc-old !
+	gc-new-sym @ gc-list @ baku-global-define drop
+	baku-gc-collections @ gc-old @ > 54 check
+	gc-new-sym @ baku-global-lookup if gc-list @ = else false then 55 check ;
+
 : gc-pre-setup ( -- )
 	1 baku-fixnum 2 baku-fixnum baku-cons gc-pre-list !
 	s" gc-pre" baku-intern gc-pre-sym !
 	gc-pre-sym @ 7 baku-fixnum baku-global-define drop ;
 
 : gc-run ( -- )
-	baku-gc-stack-scan? if gc-supported-test else gc-unsupported-test then ;
+	gc-supported-test
+	gc-data-stack-test
+	gc-prepend-collect-test ;
 
 gc-pre-setup
 gc-run

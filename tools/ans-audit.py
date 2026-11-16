@@ -34,13 +34,8 @@ from forth_source import (
 )
 
 # A single documented portability file may isolate a non-ANS word.  Baku has
-# no such file today; keep this empty rather than silently allowing words.
-DOCUMENTED_PORTABILITY_EXCEPTIONS = {
-    # The GC needs the Forth stack roots.  This one adapter is [DEFINED]-gated;
-    # a target without stack pointers keeps a no-op adapter and refuses GC
-    # activation with a catchable error instead of missing a root.
-    "4th/gc-stack.4th": {"SP0", "SP@", "RP0", "RP@"},
-}
+# no such file: the GC stack-root adapter uses only ANS Forth 2012 words.
+DOCUMENTED_PORTABILITY_EXCEPTIONS = {}
 
 # The project spec (specs/forth-portability.md) says INCLUDE is not the
 # standard word to use; INCLUDED is.  The 2012 annex lists INCLUDE as a

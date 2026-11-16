@@ -206,12 +206,10 @@ create baku-global-buckets baku-symbol-buckets-count cells allot
 	baku-global-pair if baku-tl true else baku-nil false then ;
 
 : baku-global-prepend ( sym value -- value )
-	dup >r
 	over baku-global-bucket >r
-	baku-cons
+	tuck baku-cons
 	r@ @ baku-cons
-	r> !
-	r> ;
+	r> ! ;
 
 : baku-global-define ( sym value -- value )
 	\ Inside an arena the entry lives in the selected heap, so an in-place
@@ -286,7 +284,7 @@ create baku-global-buckets baku-symbol-buckets-count cells allot
 	2drop baku-nil false ;
 
 : baku-bind ( value sym env -- env' )
-	>r swap baku-cons r> baku-cons ;
+	-rot swap baku-cons swap baku-cons ;
 
 variable baku-bind-params
 variable baku-bind-args
@@ -323,15 +321,18 @@ defer baku-eval-ir
 	if nip else drop baku-ir-value then ;
 
 \ Evaluate the arguments of a call in source order.  NODE and I identify the
-\ position; ENV is carried on the return stack so the value being built can sit
-\ on top of it while the rest of the list is evaluated.
+\ position; ENV stays on the data stack, which the collector already scans, so
+\ the value being built can sit below the recursive frame without becoming a
+\ return-stack root.
 : baku-eval-args-from ( node i env -- list )
-	>r
-	over baku-ir-call-arity over swap < if
-		2dup baku-ir-call-arg r@ baku-eval-ir
-		>r 1+ r> r> swap >r recurse r> swap baku-cons
+	2 pick baku-ir-call-arity 2 pick swap < if
+		2 pick 2 pick baku-ir-call-arg over baku-eval-ir
+		3 roll 3 roll 3 roll
+		swap 1+ swap
+		recurse
+		baku-cons
 	else
-		2drop r> drop baku-nil
+		2drop drop baku-nil
 	then ;
 
 variable baku-op-env
@@ -546,13 +547,10 @@ defer baku-native-run
 
 : baku-eval-let ( node env -- value )
 	over baku-ir-let-expr over baku-eval-ir
-	2 pick baku-ir-let-body >r
-	>r
-	over baku-ir-let-var
-	r> swap
-	2swap swap drop
+	2 pick baku-ir-let-var
+	rot
 	baku-bind
-	r> swap baku-eval-ir ;
+	swap baku-ir-let-body swap baku-eval-ir ;
 
 : baku-eval-lambda ( node env -- value )
 	1 baku-closure-interpreted baku-make-closure ;
@@ -579,11 +577,10 @@ defer baku-native-run
 : baku-eval-trap ( node env -- value )
 	over baku-ir-trap-expr over
 	['] baku-eval-protected catch dup if
-		>r 2drop r> baku-exception-value >r
-		over baku-ir-trap-handler over baku-eval-ir
-		r> baku-nil baku-cons
-		baku-apply
-		nip nip
+		>r 2drop r> baku-exception-value
+		2 pick baku-ir-trap-handler
+		2 pick baku-eval-ir
+		2swap 2drop swap baku-nil baku-cons baku-apply
 	else
 		drop nip nip
 	then ;
@@ -594,9 +591,8 @@ defer baku-native-run
 : baku-eval-call ( node env -- value )
 	over baku-ir-tail? >r
 	over baku-ir-call-operator over baku-eval-operator
-	>r
+	-rot
 	0 swap baku-eval-args-from
-	r> swap
 	r> if
 		baku-tail-args ! baku-tail-fn !
 		baku-tail-pending

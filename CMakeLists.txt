@@ -187,9 +187,8 @@ add_test(NAME baku_release_asset_selftest
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/test/release-asset-selftest.cmake)
 
 file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
-# These tests initialise the whole kernel and/or need GC stack roots; see the
-# exclusions below.  kernel-suite boots under the collector, which Sloth cannot
-# activate, so it is a gforth-only long test.
+# These tests initialise the whole kernel and are too slow on Sloth's Debug
+# build; see the exclusions below.  kernel-suite is a long collector run.
 set(BAKU_NATIVE_BOOT_TESTS boot-native kernel repl kernel-suite)
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
@@ -199,8 +198,8 @@ foreach(test_file IN LISTS BAKU_TESTS)
 	# for SHEN.INITIALISE alone and several times that for STLIB.INITIALISE, so
 	# those tests run on gforth.  The full corpus native install still runs on
 	# Sloth in test/native.4th's code path and in the manual install experiment.
-	# kernel-suite needs the Cheney collector, whose stack roots only gforth
-	# exposes.  The standard-input test reads the CTest input file and is
+	# kernel-suite is the long collector run and is excluded for the same speed
+	# reason.  The standard-input test reads the CTest input file and is
 	# registered below.
 	set(test_targets ${BAKU_REQUIRED_TARGETS})
 	if(test_name IN_LIST BAKU_NATIVE_BOOT_TESTS)

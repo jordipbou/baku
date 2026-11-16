@@ -6,10 +6,9 @@
 \ The kernel-visible EVAL-KL is the single dispatcher, so these tests evaluate
 \ through the registered function entry rather than calling a backend directly.
 \
-\ gforth exposes the stack pointers the collector needs, so its branch runs the
-\ real interpreter under repeated collections.  The pinned Sloth has neither, so
-\ its branch proves activation fails with the documented catchable code and that
-\ the default non-GC mode is untouched.
+\ The collector runs on both targets: its stack-scan adapter uses only ANS words.
+\ The test runs the real interpreter under repeated collections on Sloth and
+\ gforth.
 
 [DEFINED] gforth
 [IF]
@@ -160,26 +159,8 @@ gcm-value 1 baku-gc-root+
 	baku-gc-used? baku-gc-semispace @ < 32 check
 	baku-mode baku-mode-gc = 33 check ;
 
-: gcm-unsupported-test ( -- )
-	baku-mode baku-mode-nongc = 1 check
-	gcm-report-mode
-
-	\ The default mode still compiles native code and never collects.
-	baku-native-code-cells @ gcm-cells !
-	baku-gc-collections @ gcm-old !
-	gcm-add-form gcm-eval baku-fixnum-value 3 = 2 check
-	baku-native-code-cells @ gcm-cells @ > 3 check
-	baku-gc-collections @ gcm-old @ = 4 check
-
-	\ Activation is the catchable mode error on a target without stack roots.
-	131072 baku-gc-create
-	baku-gc-created? @ 5 check
-	['] baku-gc-activate catch baku-gc-unsupported = 6 check
-	baku-mode baku-mode-nongc = 7 check
-	['] baku-gc-collect catch baku-gc-inactive = 8 check ;
-
 : gcm-run ( -- )
-	baku-gc-stack-scan? if gcm-supported-test else gcm-unsupported-test then ;
+	gcm-supported-test ;
 
 gcm-run
 
