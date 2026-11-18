@@ -188,8 +188,14 @@ add_test(NAME baku_release_asset_selftest
 
 file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
 # These tests initialise the whole kernel and are too slow on Sloth's Debug
-# build; see the exclusions below.  kernel-suite is a long collector run.
-set(BAKU_NATIVE_BOOT_TESTS boot-native kernel repl kernel-suite)
+# build; each entry carries its own reason for the traceability audit.  Every
+# glob-registered test that is not enabled for Sloth must appear here.
+set(BAKU_NATIVE_BOOT_TESTS
+	boot-native  # initialises the whole kernel; native Debug on Sloth takes minutes
+	kernel       # initialises the whole kernel; native Debug on Sloth takes minutes
+	repl         # boots the whole kernel through the native installer before the REPL
+	kernel-suite # long collector conformance run with a large semispace
+)
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
 

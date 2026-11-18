@@ -8,7 +8,9 @@ shipped file the audit:
   * lists every external word and maps it to an ANS Forth 2012 wordset;
   * fails on any word that is neither ANS Forth 2012 nor defined by Baku;
   * fails on any C, Java, JavaScript or shell file in the shipped path;
-  * fails on any DODO reference in the shipped path.
+  * fails on any DODO reference in the shipped path;
+  * fails on a `[DEFINED]`/`[UNDEFINED]` guard on a host-language feature.
+    Guards on ANS Forth words and on the `gforth` target are allowed.
 
 Comments (\\ to end of line and ( ... )) and string literals are not words.
 
@@ -51,6 +53,13 @@ HOST_EXTENSIONS = {
     ".sh", ".bash", ".zsh", ".ksh",
 }
 
+# A conditional branch on a host-language runtime is forbidden: the shipped
+# path must not depend on C, Java or JavaScript being present.  Guards on ANS
+# Forth words and on the `gforth` target are legitimate portability checks.
+HOST_GUARD_NAMES = {
+    "C", "CPP", "C++", "C#", "JAVA", "JAVASCRIPT", "JS", "ECMASCRIPT",
+}
+
 def load_standard(path):
     standard = {}
     for line in path.read_text().splitlines():
@@ -68,6 +77,7 @@ def audit(root, verbose=False):
     violations = []
     dodo = []
     host_files = []
+    host_guards = []
     standard_used = {}
     baku_used = set()
     exceptions_used = []
@@ -106,6 +116,10 @@ def audit(root, verbose=False):
                 literals.add(up)
                 continue
             if up in SKIP_NEXT_TOKEN:
+                if (up in ("[DEFINED]", "[UNDEFINED]") and idx < len(toks)
+                        and toks[idx][0] == "word"
+                        and toks[idx][1].upper() in HOST_GUARD_NAMES):
+                    host_guards.append((rel, line, value, toks[idx][1]))
                 idx += 1
                 continue
             if up in DEFINING_WORDS:
@@ -171,12 +185,16 @@ def audit(root, verbose=False):
         print("DODO REFERENCES:")
         for rel, line, word in sorted(dodo):
             print(f"  {rel}:{line}: {word}")
+    if host_guards:
+        print("HOST-CONDITIONAL GUARDS:")
+        for rel, line, word, feature in sorted(host_guards):
+            print(f"  {rel}:{line}: {word} {feature}")
     if violations:
         print("NON-ANS WORDS:")
         for rel, line, word, reason in sorted(violations):
             print(f"  {rel}:{line}: {word} ({reason})")
 
-    ok = not violations and not host_files and not dodo
+    ok = not violations and not host_files and not dodo and not host_guards
     print("ANS-AUDIT " + ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

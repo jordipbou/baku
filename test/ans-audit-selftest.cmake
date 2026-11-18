@@ -65,4 +65,22 @@ if(audit_full MATCHES "NON-ANS-AUDIT-COMMENT" OR audit_full MATCHES "NON-ANS-AUD
 	message(FATAL_ERROR "ans-audit-selftest: comment or string was reported as a word\n${audit_full}")
 endif()
 
+# 6. A conditional branch on a host-language feature must fail.
+file(COPY "${SOURCE_DIR}/4th" DESTINATION "${work}/hostguard")
+file(APPEND "${work}/hostguard/4th/primitives.4th"
+	"\n: baku-audit-host-guard ( -- ) [DEFINED] C [IF] 1 drop [THEN] ;\n")
+run_audit("${work}/hostguard" 1 "host-language conditional guard")
+if(NOT audit_full MATCHES "HOST-CONDITIONAL GUARDS")
+	message(FATAL_ERROR "ans-audit-selftest: host-conditional guard was not reported\n${audit_full}")
+endif()
+
+# 7. Guards on ANS words and the gforth target remain legal.
+file(COPY "${SOURCE_DIR}/4th" DESTINATION "${work}/ansguard")
+file(APPEND "${work}/ansguard/4th/primitives.4th"
+	"\n: baku-audit-ans-guard ( -- ) [DEFINED] DUP [IF] 1 drop [THEN] ;\n")
+run_audit("${work}/ansguard" 0 "ANS-word conditional guard")
+if(audit_full MATCHES "HOST-CONDITIONAL GUARDS")
+	message(FATAL_ERROR "ans-audit-selftest: ANS-word guard was reported\n${audit_full}")
+endif()
+
 message(STATUS "ANS-AUDIT-SELFTEST PASS")

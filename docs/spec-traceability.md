@@ -45,39 +45,38 @@ deferred by the M0 decision.
 
 ### `ans-forth-only#4`
 
-No shipped file contains a conditional branch on a host-language feature.
+No shipped file contains a conditional branch on a host-language (C, Java or JavaScript)
+feature; `[DEFINED]` checks and environment queries of ANS Forth words are allowed.
 
-Tests: `baku_ans_audit`
+Tests: `baku_ans_audit`, `baku_ans_audit_selftest`
 
 Evidence: The static scan rejects host-language constructs, DODO references and
-conditional host-feature branches in the shipped graph.
+[DEFINED]/[UNDEFINED] guards on C, Java or JavaScript, while allowing ANS words and the
+gforth target; the self-test injects a host-conditional branch and a legal ANS-word
+guard.
 
 ## `bootstrap-and-repl.md`
 
 ### `bootstrap-and-repl#1`
 
 Boot reaches a marker after `shen.initialise` and `stlib.initialise` without a Forth
-exception.
+exception, using the collector and the interpreter installer.
 
-Tests: `baku_boot-native_gforth`, `baku_no_build`, `baku_repl_gforth`
+Tests: none
 
-Evidence: The native installer runs shen.initialise then stlib.initialise and reaches a
-test marker without a Forth exception.
+Evidence: 2026-11-18: the collector boot path lands in P2; the current boot tests select
+the native installer, so no test yet boots through the collector.
 
 ### `bootstrap-and-repl#2`
 
-A boot-order test proves every root exists before the first allocation that could
-trigger collection. If the chosen bootstrap mode uses the collector, a forced collection
-during boot preserves all boot globals and the reader's live forms; if it is non-GC, the
-same forced collection runs after boot once the collector exists (M8).
+A boot-order test creates and activates the collector before the first allocation that
+could trigger a collection; a forced collection after boot preserves all boot globals,
+installed functions and the reader's live forms.
 
-Tests: `baku_boot-native_gforth`, `baku_kernel-suite_gforth`, `baku_gc-mode_gforth`,
-`baku_gc_gforth`
+Tests: none
 
-Evidence: Boot-native proves the explicit root registry, the function/global bucket
-tables and the stack-scan adapter exist before the loader runs, then forces a collection
-after the non-GC boot and checks the boot globals, a live reader form and native
-closures survive it.
+Evidence: 2026-11-18: the GC boot-order test lands in P2; boot-native currently
+activates the collector after a non-GC boot.
 
 ### `bootstrap-and-repl#3`
 
@@ -101,7 +100,7 @@ Evidence: The top level prints 3628800 for (factorial 10).
 `(arity factorial)` returns `1` and a stlib macro or datatype is usable, proving
 `stlib.initialise` ran.
 
-Tests: `baku_boot-native_gforth`, `baku_kernel_gforth`, `baku_kernel-suite_gforth`
+Tests: `baku_kernel_gforth`, `baku_kernel-suite_gforth`
 
 Evidence: arity factorial is 1, stlib arities resolve, and the suite exercises stlib
 macros and datatypes.
@@ -135,80 +134,14 @@ and the no-build run re-digests the corpus afterwards.
 
 ### `bootstrap-and-repl#9`
 
-The manifest in `4th/` matches the loader and is tested by a boot test.
+The manifest in `4th/` matches the loader and is tested by a boot test that does not
+select a native installer.
 
 Tests: `baku_boot_sloth`, `baku_boot_gforth`
 
 Evidence: The boot test checks the manifest against the loader, the 23 files, 1124 forms
-and 1118 defuns.
-
-## `compilation-modes.md`
-
-### `compilation-modes#1`
-
-A matrix test runs a fixed Shen program set in all three modes on one target and asserts
-byte-identical observable output for every mode.
-
-Tests: `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`
-
-Evidence: One compiled case list runs in every available mode; the values and formatted
-bytes must agree.
-
-### `compilation-modes#2`
-
-The program set covers arithmetic, lists, strings, vectors, closures/currying, `trap-
-error`, recursion, tail recursion and an allocation-heavy loop.
-
-Tests: `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`,
-`baku_mode-differential_sloth`, `baku_mode-differential_gforth`
-
-Evidence: The fixed set covers arithmetic, lists, strings, vectors, closures, currying,
-trap-error, recursion and allocation-heavy loops.
-
-### `compilation-modes#3`
-
-In non-GC and arena modes, a counter or hook proves the collector did not run.
-
-Tests: `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`, `baku_arena-native_sloth`,
-`baku_arena-native_gforth`
-
-Evidence: The mode matrix asserts no collection ran in non-GC and arena mode.
-
-### `compilation-modes#4`
-
-In GC mode, a hook proves the collector did run during the allocation-heavy loop.
-
-Tests: `baku_mode-matrix_gforth`, `baku_gc-mode_gforth`
-
-Evidence: The GC pass asserts collections advanced during the allocation-heavy loop.
-
-### `compilation-modes#5`
-
-Switching from interpreter to native compilation changes no output for the corpus.
-
-Tests: `baku_mode-differential_sloth`, `baku_mode-differential_gforth`
-
-Evidence: The interpreter and native entries produce equal values, text and error
-classes for the fixed case set.
-
-### `compilation-modes#6`
-
-A mode that a target cannot support fails with a clear, catchable error, not a silent
-fallback that changes semantics.
-
-Tests: `baku_gc_sloth`, `baku_gc-mode_sloth`, `baku_native_sloth`, `baku_native_gforth`
-
-Evidence: Sloth reports GC activation as the catchable unsupported code; the native
-entry refuses GC mode with a catchable mode error.
-
-### `compilation-modes#7`
-
-The mode is reported in the test output so a failure is attributable.
-
-Tests: `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`, `baku_gc-mode_sloth`,
-`baku_gc-mode_gforth`
-
-Evidence: Each pass prints its mode header, so a mismatch is attributable.
+and 1118 defuns, and it uses the default interpreter installer rather than a native
+installer.
 
 ## `contract.md`
 
@@ -224,16 +157,20 @@ spec criterion to a test or a dated waiver.
 
 ### `contract#2`
 
-Statements 2, 3, 4, 7, 11, 13, 15, 16, 17 and 19 are checked by scripts or tests, not by
-inspection alone.
+Statements 2, 3, 4, 7, 13 and 17 are checked by scripts or tests, not by inspection
+alone. Statements 8, 9, 11, 14 and 15 are superseded and statements 16 and 19 are
+deferred with the native compiler under `Target status`; all seven carry dated waivers
+in the traceability table.
 
-Tests: `baku_ans_audit`, `baku_values_sloth`, `baku_values_gforth`, `baku_reader_sloth`,
-`baku_reader_gforth`, `baku_gc_gforth`, `baku_arena_sloth`, `baku_arena_gforth`,
-`baku_region_audit`, `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`,
-`baku_eval_sloth`, `baku_eval_gforth`, `baku_native_sloth`, `baku_native_gforth`
+Tests: `baku_ans_audit`, `baku_ans_audit_selftest`, `baku_probe_sloth`,
+`baku_probe_gforth`, `baku_values_sloth`, `baku_values_gforth`,
+`baku_conformance_sloth`, `baku_conformance_gforth`, `baku_reader_sloth`,
+`baku_reader_gforth`, `baku_boot_sloth`, `baku_boot_gforth`, `baku_kernel-suite_gforth`,
+`baku_gc_gforth`, `baku_region_audit`, `baku_region_audit_selftest`, `baku_eval_sloth`,
+`baku_eval_gforth`
 
-Evidence: Statements 2, 3, 4, 7, 11, 13, 15, 16, 17 and 19 are each covered by the named
-audits and tests.
+Evidence: Statements 2, 3, 4, 7, 13 and 17 are each checked by the named audits and
+tests; the superseded and deferred statements carry dated waivers in their own rows.
 
 ### `contract#3`
 
@@ -241,9 +178,8 @@ The version-specific obligations taken from `port-upgrades.md` have named tests:
 `stlib.initialise`, callable `input+`, zero-place `fn`/`thaw`, and the public `char-
 stream?`/`read-unit-string`/`write-string` arities.
 
-Tests: `baku_boot-native_gforth`, `baku_compat_sloth`, `baku_compat_gforth`,
-`baku_kernel_gforth`, `baku_primitives_sloth`, `baku_primitives_gforth`,
-`baku_io_sloth`, `baku_io_gforth`
+Tests: `baku_compat_sloth`, `baku_compat_gforth`, `baku_kernel_gforth`,
+`baku_primitives_sloth`, `baku_primitives_gforth`, `baku_io_sloth`, `baku_io_gforth`
 
 Evidence: stlib.initialise, callable input+, zero-place fn/thaw and the public char-
 stream?/read-unit-string/write-string arities have named checks.
@@ -316,7 +252,7 @@ KLambda is the only required implementation. Shen is self-hosted and compiles it
 KLambda; the kernel ships precompiled to KLambda and includes the Shen reader and the
 Shen compiler.
 
-Tests: `baku_reader_sloth`, `baku_reader_gforth`, `baku_boot-native_gforth`,
+Tests: `baku_reader_sloth`, `baku_reader_gforth`, `baku_boot_sloth`, `baku_boot_gforth`,
 `baku_kernel-suite_gforth`
 
 Evidence: The KLambda corpus reads and boots unmodified, including the Shen reader and
@@ -328,17 +264,17 @@ Baku supplies the tagged value model, the garbage collector, the KLambda primiti
 the KLambda executor/compiler.
 
 Tests: `baku_values_sloth`, `baku_values_gforth`, `baku_gc_gforth`,
-`baku_primitives_sloth`, `baku_primitives_gforth`, `baku_native_sloth`,
-`baku_native_gforth`
+`baku_primitives_sloth`, `baku_primitives_gforth`, `baku_eval_sloth`, `baku_eval_gforth`
 
-Evidence: The value layer, collector, primitives and both executors are exercised by
-named tests.
+Evidence: The value layer, collector, primitives and the interpreter executor are
+exercised by named tests.
 
 ### `contract#statement-6`
 
 Full Shen boots on top of Baku's KLambda implementation.
 
-Tests: `baku_boot-native_gforth`, `baku_kernel-suite_gforth`, `baku_no_build`
+Tests: `baku_boot_sloth`, `baku_boot_gforth`, `baku_kernel_gforth`,
+`baku_kernel-suite_gforth`, `baku_no_build`
 
 Evidence: Full Shen boots and initialises through the KLambda layer.
 
@@ -356,29 +292,30 @@ Evidence: Values are tagged; region classification is by exact address range.
 Non-GC memory holds native code and constants compiled at loading time and uses the
 Forth dictionary memory block.
 
-Tests: `baku_native_sloth`, `baku_native_gforth`, `baku_boot-native_gforth`
+Tests: none
 
-Evidence: Native code and copied literals live in the non-GC dictionary block.
+Evidence: 2026-11-18: superseded by the JTBD; the non-GC block is now the permanent
+symbol area and the replacement entry text is proposed in the final report.
 
 ### `contract#statement-9`
 
 Arenas live in the Forth dictionary memory block and use `MARKER` for no-latency
 reclaim; arena code compiles to native Forth.
 
-Tests: `baku_arena_sloth`, `baku_arena_gforth`, `baku_arena-native_sloth`,
-`baku_arena-native_gforth`
+Tests: none
 
-Evidence: Arenas use MARKER release and reuse the native code generator.
+Evidence: 2026-11-18: superseded by the JTBD; the arena subsystem is removed and the
+replacement entry text is proposed in the final report.
 
 ### `contract#statement-10`
 
 Cheney GC lives in its own heap block. When active, code is stored in the heap and run
 by the simplest interpreter.
 
-Tests: `baku_gc_sloth`, `baku_gc_gforth`, `baku_gc-mode_gforth`,
-`baku_mode-matrix_gforth`
+Tests: `baku_gc_sloth`, `baku_gc_gforth`, `baku_gc-mode_gforth`
 
-Evidence: The Cheney collector owns its heap block; GC mode interprets heap code.
+Evidence: The Cheney collector owns its heap block; when active, code lives in the heap
+and the interpreter runs it.
 
 ### `contract#statement-11`
 
@@ -386,10 +323,10 @@ The GC is active when it has been activated and no arena is active. An arena may
 before or after GC activation, but no arena may exist when the GC is activated or during
 a move/compaction; every arena must be freed before the GC moves or compacts.
 
-Tests: `baku_gc_gforth`, `baku_arena-native_sloth`, `baku_arena-native_gforth`,
-`baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`
+Tests: none
 
-Evidence: Activation and move rules are enforced with catchable errors.
+Evidence: 2026-11-18: superseded by the JTBD; there is no arena-activation rule in the
+target and the replacement entry text is proposed in the final report.
 
 ### `contract#statement-12`
 
@@ -397,11 +334,10 @@ Non-GC memory is created during bootstrap, before the GC exists. Bootstrap creat
 root set. Roots are the only non-GC memory allowed to hold GC references, and the GC
 scans and updates them.
 
-Tests: `baku_boot-native_gforth`, `baku_gc_gforth`, `baku_gc-mode_gforth`,
-`baku_kernel-suite_gforth`
+Tests: `baku_gc_gforth`, `baku_gc-mode_gforth`, `baku_kernel-suite_gforth`
 
 Evidence: Roots are created before the loader runs and traced across the forced
-collection after the non-GC boot.
+collection after the boot.
 
 ### `contract#statement-13`
 
@@ -418,9 +354,10 @@ unreviewed store fails.
 Arenas may hold GC references and are freed before a GC move/compaction, so those
 references do not change. The GC must not hold references to arena objects.
 
-Tests: `baku_gc_gforth`, `baku_arena-native_sloth`, `baku_arena-native_gforth`
+Tests: none
 
-Evidence: Arena-held GC references are legal and a freed arena object is not traced.
+Evidence: 2026-11-18: superseded by the JTBD; arenas and arena-held references are
+removed and the replacement entry text is proposed in the final report.
 
 ### `contract#statement-15`
 
@@ -429,27 +366,29 @@ code to the dictionary; GC (activated, no arena) stores code in the heap and int
 it with the simplest interpreter; arena (arena active, GC on or off) compiles native
 code in the dictionary.
 
-Tests: `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`, `baku_native_sloth`,
-`baku_native_gforth`, `baku_gc-mode_gforth`
+Tests: none
 
-Evidence: All three modes are selected from memory state and compared.
+Evidence: 2026-11-18: superseded by the JTBD; the three compilation modes are removed
+and the replacement entry text is proposed in the final report.
 
 ### `contract#statement-16`
 
 Self-tail-recursion compiles to a `BEGIN ... AGAIN` loop.
 
-Tests: `baku_native_sloth`, `baku_native_gforth`, `baku_eval_sloth`, `baku_eval_gforth`
+Tests: none
 
-Evidence: A self tail call jumps to the block start in native code; the interpreter uses
-the shared trampoline.
+Evidence: 2026-11-18: deferred with the native compiler; the interpreter uses the shared
+trampoline and the replacement entry text is proposed in the final report.
 
 ### `contract#statement-17`
 
 General tail calls go through a trampoline.
 
-Tests: `baku_eval_sloth`, `baku_eval_gforth`, `baku_native_sloth`, `baku_native_gforth`
+Tests: `baku_eval_sloth`, `baku_eval_gforth`, `baku_gc-mode_sloth`,
+`baku_gc-mode_gforth`
 
-Evidence: Mutual tail calls run in constant return-stack space.
+Evidence: Mutual tail calls run in constant return-stack space through the interpreter
+trampoline.
 
 ### `contract#statement-18`
 
@@ -466,10 +405,10 @@ Tail-call function compilation may use native TCO when the Forth offers it, dete
 with `[DEFINED]` or environment queries, without breaking the ANS Forth 2012
 requirement.
 
-Tests: `baku_native_sloth`, `baku_native_gforth`, `baku_ans_audit`
+Tests: none
 
-Evidence: Native TCO is optional and deliberately not implemented; the shared trampoline
-is the ANS-safe fallback and the audit keeps the sources portable.
+Evidence: 2026-11-18: deferred with the native compiler; native TCO is not part of the
+GC-only target and the replacement entry text is proposed in the final report.
 
 ### `contract#statement-20`
 
@@ -511,13 +450,14 @@ missing, extra, dangling or unreviewed link fails.
 
 ### `documentation#2`
 
-README sections cover purpose, architecture, memory, execution, I/O and errors, testing
-and licensing.
+README sections cover purpose, architecture, memory, the single execution path, I/O and
+errors, testing and licensing.
 
 Tests: `baku_spec_traceability`
 
-Evidence: The audit checks that the README has purpose, architecture, memory, execution,
-I/O and errors, testing and licensing sections.
+Evidence: The audit checks the purpose statement and the architecture, memory,
+execution, I/O, testing and licensing sections. The single-execution-path wording is a
+dated waiver until P5 rewrites the README and README_HEADINGS together.
 
 ### `documentation#3`
 
@@ -556,6 +496,29 @@ Tests: `baku_spec_traceability`, `baku_provenance_audit`
 
 Evidence: The README names proj.baku.org, states that it adds no requirements and links
 the generated documents instead of copying them.
+
+### `documentation#7`
+
+The README and generated traceability describe one collector lifetime and one
+interpreter executor, with no current arena or native backend and no general non-GC
+execution mode. The non-GC memory described is confined to the permanent symbol area and
+the resettable reader scratch region.
+
+Tests: none
+
+Evidence: 2026-11-18: the README and generated traceability document are rewritten to
+the single collector lifetime and single interpreter executor in P5.
+
+### `documentation#8`
+
+The refactor's final report records the measurement table, the exact verification
+commands with pass/fail, and proposed replacement `Memory management` and `Code
+compilation` text for `proj.baku.org`; the real org file is not edited.
+
+Tests: none
+
+Evidence: 2026-11-18: the measurement table, exact verification commands and proposed
+replacement entry text are the final-report deliverable in P5.
 
 ## `forth-portability.md`
 
@@ -619,6 +582,104 @@ Tests: none
 
 Evidence: 2026-11-14: the 32-bit adaptation is deferred by the M0 decision; the gap is
 recorded here and in the plan, and no 32-bit target exists.
+
+## `gc-only-execution.md`
+
+### `gc-only-execution#1`
+
+A booted Baku has one execution path: the Cheney collector owns the selected heap and
+the interpreter executes heap-resident IR. No arena, native or non-GC execution mode
+exists in shipped source. In the booted path, non-GC memory is confined to interned
+symbols, the resettable reader scratch region and the bootstrap root set created before
+the collector is activated; it holds no compiled code or interpreter IR.
+
+Tests: none
+
+Evidence: 2026-11-18: the arena and native sources are removed in P3 and P4; until then
+shipped source still names them and boot-native is the user path.
+
+### `gc-only-execution#2`
+
+A forced collection after boot preserves every boot global, every installed kernel
+function, a live reader form and the current top-level state.
+
+Tests: none
+
+Evidence: 2026-11-18: the collector boot and its post-boot collection land in P2.
+
+### `gc-only-execution#3`
+
+Definitions, globals, closures, curried applications, `trap-error` and an allocation-
+heavy tail loop behave identically before and after a forced collection.
+
+Tests: none
+
+Evidence: 2026-11-18: the curried-application and trap-error checks under the collector
+are added to gc-mode in P4.
+
+### `gc-only-execution#4`
+
+Applying a non-callable value or an over-applied closure fails with the existing
+catchable evaluator errors; no native closure kind or mode-specific error remains.
+
+Tests: none
+
+Evidence: 2026-11-18: the non-callable and over-applied closure checks under the
+collector are added to gc-mode in P4.
+
+### `gc-only-execution#5`
+
+The reader streams one form at a time through a resettable scratch region distinct from
+the permanent symbol area and the GC heap. Symbols survive the reset, and strings and
+floats are copied into the selected heap before the next read.
+
+Tests: none
+
+Evidence: 2026-11-18: the reader scratch region is renamed and its survival test is
+added in P3.
+
+### `gc-only-execution#6`
+
+The front end, vector IR and shared tail-position flags remain the only compiler-facing
+representation, and the interpreter is their only consumer.
+
+Tests: none
+
+Evidence: 2026-11-18: the native backend is removed in P4; until then it is a second
+consumer of the IR.
+
+### `gc-only-execution#7`
+
+With the collector active, self and mutual tail calls complete far beyond the Forth
+return-stack depth without overflow.
+
+Tests: none
+
+Evidence: 2026-11-18: the GC-only tail test, including mutual recursion, is rewritten in
+P4.
+
+### `gc-only-execution#8`
+
+No shipped source, test, build rule, manifest or audit names the removed arena
+subsystem, the native backend as a current execution path, or the mode selector:
+`arena`, `baku-mode`, `baku-native-*`, `baku-arena-*`, `baku-ir-scratch`, `baku-dict-
+reserve`, `baku-alloc-sync` or `baku-closure-native`, except in prose that records the
+removal or defers native compilation to the future. The surviving permanent block may
+still be described as the non-GC symbol area.
+
+Tests: none
+
+Evidence: 2026-11-18: the removed-name static check and the source deletions land in P4.
+
+### `gc-only-execution#9`
+
+The library load order is valid on both gforth and Sloth when the collector is created
+and activated before the kernel boot.
+
+Tests: none
+
+Evidence: 2026-11-18: the collector-before-kernel boot order is added in P2; the Sloth
+load-order evidence is measured then.
 
 ## `kernel-provenance.md`
 
@@ -901,7 +962,8 @@ valid form.
 
 ### `memory-management#1`
 
-An audit finds no raw cross-region store in the compiler/runtime.
+An audit finds no raw cross-region store in the compiler or runtime outside the reviewed
+roots and object writers.
 
 Tests: `baku_region_audit`, `baku_region_audit_selftest`
 
@@ -910,58 +972,35 @@ address store.
 
 ### `memory-management#2`
 
-Legal same-region stores and the legal arena-holds-GC-reference case are accepted.
+Legal same-region stores and the permanent symbol table are accepted by the audit.
 
-Tests: `baku_region_audit`, `baku_gc_gforth`
+Tests: `baku_region_audit`, `baku_region_audit_selftest`, `baku_gc_gforth`
 
-Evidence: Same-region writers are reviewed and the legal arena-holds-GC case is tested.
+Evidence: The audit accepts reviewed same-region writers and the permanent symbol table;
+gc.4th interns a new symbol after activation and keeps it across a collection.
 
 ### `memory-management#3`
 
-Activating the GC while an arena exists is refused with a catchable error.
+Permanent symbols live in a non-GC area that survives every collection; a symbol's
+identity is its permanent address, it is never traced, and interning after collector
+activation remains valid.
 
-Tests: `baku_gc_gforth`, `baku_gc_sloth`
+Tests: none
 
-Evidence: Activating the collector with a live arena raises the documented catchable
-error.
+Evidence: 2026-11-18: the permanent-symbol survival check lands with the reader scratch
+check in P3.
 
 ### `memory-management#4`
 
-Starting a GC move/compaction while an arena exists is refused with a catchable error.
+The reader's scratch region is registered separately from the symbol area and the GC
+semispace, and its extent ends at its bump pointer.
 
-Tests: `baku_gc_gforth`
+Tests: none
 
-Evidence: A collection attempted while an arena is live is refused.
+Evidence: 2026-11-18: the reader scratch extent check lands in P3 with the arena
+removal.
 
 ### `memory-management#5`
-
-Freeing every arena first allows the GC move to proceed.
-
-Tests: `baku_gc_gforth`
-
-Evidence: Freeing every arena first allows the collection to proceed.
-
-### `memory-management#6`
-
-The GC does not retain a reference to an arena object: a test proves such an object is
-not traced after its arena is freed.
-
-Tests: `baku_gc_gforth`, `baku_arena-native_sloth`, `baku_arena-native_gforth`
-
-Evidence: A GC value held by an arena is not traced after the arena is freed.
-
-### `memory-management#7`
-
-Arena `MARKER` release returns allocation to the marked state; a released object is
-never observed as live data.
-
-Tests: `baku_arena_sloth`, `baku_arena_gforth`, `baku_arena-native_sloth`,
-`baku_arena-native_gforth`
-
-Evidence: MARKER release restores HERE and a released object is never observed as live
-data.
-
-### `memory-management#8`
 
 Cheney GC preserves every reachable value, every cycle and every shared tail, and
 reclaims unreachable values.
@@ -971,7 +1010,7 @@ Tests: `baku_gc_gforth`
 Evidence: The collector preserves cycles, shared tails and reachable values and reclaims
 unreachable ones.
 
-### `memory-management#9`
+### `memory-management#6`
 
 A stress loop allocates, collects repeatedly and keeps live data and accounting
 consistent.
@@ -979,14 +1018,6 @@ consistent.
 Tests: `baku_gc_gforth`
 
 Evidence: A stress loop allocates and collects repeatedly with consistent accounting.
-
-### `memory-management#10`
-
-All three modes pass the same value round-trip suite.
-
-Tests: `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`
-
-Evidence: The same value round-trip cases run in every available mode.
 
 ## `no-build-step.md`
 
@@ -1025,6 +1056,90 @@ Tests: `baku_no_build`
 
 Evidence: The test requires the shipped .4th file set to be unchanged after the boot.
 
+## `startup-memory.md`
+
+### `startup-memory#1`
+
+Creating the collector reads a `baku-gc-semispace-request` cell that a caller can set
+before creation.
+
+Tests: none
+
+Evidence: 2026-11-18: the request cell and its assertion are added in P1.
+
+### `startup-memory#2`
+
+A full default boot at collector-creation time completes under a documented symbol-area
+request and semispace request with no out-of-memory. The documented gforth command uses
+only a small dictionary sized to the shipped Forth code plus the symbol block, never the
+old 512 MiB non-GC heap or a 640/768 MiB dictionary reservation.
+
+Tests: none
+
+Evidence: 2026-11-18: the default GC boot is the P2 user path.
+
+### `startup-memory#3`
+
+Measurements for the 8, 16 and 32 MiB semispace choices crossed with the 8, 16 and 32
+MiB symbol-area choices record used and post-collection live bytes, symbol bytes, total
+reservation (both semispaces plus the symbol area), boot time and peak RSS for
+`shen.initialise`, `stlib.initialise` and the REPL.
+
+Tests: none
+
+Evidence: 2026-11-18: the 8/16/32 MiB measurement table is a P1 process deliverable
+recorded in the final report.
+
+### `startup-memory#4`
+
+The chosen defaults have headroom and the total reservation, meaning both semispaces
+plus the permanent symbol area, is at most about 40 MiB.
+
+Tests: none
+
+Evidence: 2026-11-18: the total-reservation budget assertion is added to gc-boot in P2.
+
+### `startup-memory#5`
+
+The default symbol area holds every symbol interned by the boot without exhausting; the
+kernel suite's documented symbol-area override holds the gensyms and loaded-program
+symbols it creates.
+
+Tests: none
+
+Evidence: 2026-11-18: the symbol-area capacity checks land with gc-boot and the suite
+override in P2.
+
+### `startup-memory#6`
+
+A forced post-boot collection and an allocation-heavy loop complete without exhausting
+the default semispace or immediately re-collecting.
+
+Tests: none
+
+Evidence: 2026-11-18: the post-boot collection and allocation loop are added to gc-boot
+in P2.
+
+### `startup-memory#7`
+
+The documented gforth command and the no-build test boot without a 512 MiB, 640 MiB or
+768 MiB reservation.
+
+Tests: none
+
+Evidence: 2026-11-18: the user entry and no-build flags shrink to the measured
+dictionary in P1 and P2.
+
+### `startup-memory#8`
+
+The user entry, the GC boot test, the no-build test and the kernel suite use the same
+defaults or a documented override that does not change model semantics.
+
+Tests: none
+
+Evidence: 2026-11-18: the shared defaults are wired through start.4th, gc-boot, no-build
+and the suite in P1 and P2.
+
 ## `tail-calls.md`
 
 ### `tail-calls#1`
@@ -1032,18 +1147,19 @@ Evidence: The test requires the shipped .4th file set to be unchanged after the 
 A self-tail-recursive countdown held over a deep call chain completes on the smallest
 return stack the target allows, with no overflow.
 
-Tests: `baku_eval_sloth`, `baku_eval_gforth`, `baku_native_sloth`, `baku_native_gforth`
+Tests: `baku_eval_sloth`, `baku_eval_gforth`
 
-Evidence: 100,000-deep self-tail countdowns complete without overflowing the return
-stack.
+Evidence: 100,000-deep self-tail countdowns complete through the interpreter trampoline
+without overflowing the return stack.
 
 ### `tail-calls#2`
 
 A mutual-tail-recursion even/odd test over a deep chain completes in constant space.
 
-Tests: `baku_eval_sloth`, `baku_eval_gforth`, `baku_native_sloth`, `baku_native_gforth`
+Tests: `baku_eval_sloth`, `baku_eval_gforth`
 
-Evidence: The mutual even/odd deep chain completes in constant space.
+Evidence: The mutual even/odd deep chain completes in constant space through the
+interpreter trampoline.
 
 ### `tail-calls#3`
 
@@ -1055,21 +1171,23 @@ Evidence: Boot loads the tail-recursive kernel loop and the top level drives she
 
 ### `tail-calls#4`
 
-A test measures or bounds return-stack usage and fails if it grows with depth.
+A test measures or bounds return-stack usage and fails if it grows with depth under the
+collector.
 
-Tests: `baku_eval_sloth`, `baku_eval_gforth`, `baku_native_sloth`, `baku_native_gforth`
+Tests: none
 
-Evidence: Depth far beyond the no-TCO overflow point bounds return-stack usage; the
-native self-jump counter is checked too.
+Evidence: 2026-11-18: the return-stack bound under the collector moves to the GC-only
+gc-mode test in P4; eval.4th runs on the layer heap.
 
 ### `tail-calls#5`
 
-Results are identical with and without native TCO.
+The interpreter's trampoline preserves the same results before and after repeated
+collections during a deep tail chain.
 
-Tests: `baku_mode-differential_sloth`, `baku_mode-differential_gforth`
+Tests: none
 
-Evidence: Interpreter and native results are identical; native TCO is not implemented,
-so the shared trampoline is the ANS-safe path.
+Evidence: 2026-11-18: the cross-mode differential is removed; P4 adds the before/after-
+collection tail comparison to gc-mode.
 
 ### `tail-calls#6`
 
@@ -1115,8 +1233,8 @@ undated waiver; the self-test proves each failure path.
 
 ### `testing#4`
 
-Kernel suite: the pinned suite runs and its pass count is recorded; a regression in
-count or named failures fails the gate.
+Kernel suite: the pinned suite runs under the collector and its pass count is recorded;
+a regression in count or named failures fails the gate.
 
 Tests: `baku_kernel-suite_gforth`
 
@@ -1124,23 +1242,22 @@ Evidence: The pinned suite runs under the collector and the gate pins zero failu
 
 ### `testing#5`
 
-Differential: identical output across Sloth and gforth for the same test file; identical
-output across compilation modes for the same program.
+Differential: identical output across Sloth and gforth for the same test file.
 
 Tests: `baku_differential_targets`, `baku_conformance_targets`,
-`baku_mode-differential_sloth`, `baku_mode-differential_gforth`,
-`baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`
+`baku_differential_sloth`, `baku_differential_gforth`, `baku_conformance_sloth`,
+`baku_conformance_gforth`
 
-Evidence: Cross-target and cross-mode comparisons are byte-exact over the marked output.
+Evidence: Cross-target comparisons are byte-exact over the marked output.
 
 ### `testing#6`
 
-A failure identifies the layer, target and mode.
+A failure identifies the layer and target.
 
-Tests: `baku_spec_traceability`, `baku_mode-matrix_sloth`, `baku_mode-matrix_gforth`
+Tests: `baku_spec_traceability`, `baku_differential_targets`
 
-Evidence: Target tests are named baku_<layer>_<target>; the mode matrix prints the mode,
-so a failure identifies layer, target and mode.
+Evidence: Target tests are named baku_<layer>_<target> and the differential comparator
+names the target, so a failure identifies layer and target.
 
 ### `testing#7`
 
@@ -1165,12 +1282,15 @@ proves the harness end to end.
 
 ### `tooling#2`
 
-CTest registers one test per `test/*.4th` per available target.
+CTest registers one test per `test/*.4th` for every target it is enabled for; a test
+excluded from a target is listed explicitly in `CMakeLists.txt` with the reason.
 
-Tests: `baku_spec_traceability`
+Tests: `baku_spec_traceability`, `baku_spec_traceability_selftest`
 
 Evidence: The registered-test list is written by CMake after the glob; the audit
-resolves every claimed test name against it.
+requires every glob-registered test that is not enabled for Sloth to carry an explicit
+exclusion with a reason comment, or an explicit registration with a comment, and the
+self-test proves a missing reason fails.
 
 ### `tooling#3`
 
@@ -1233,13 +1353,14 @@ Evidence: Tag and header checks run on 64-bit cells; the 32-bit run is deferred.
 
 ### `value-representation#3`
 
-A pointer's region is correctly determined by address range for non-GC, arena and GC
+A pointer's region is correctly determined by address range for non-GC, scratch and GC
 objects, with no false positive for an aligned non-heap address.
 
 Tests: `baku_values_sloth`, `baku_values_gforth`, `baku_gc_gforth`
 
-Evidence: Region classification is exact for non-GC, arena and GC objects with no false
-positive for aligned non-heap addresses.
+Evidence: Region classification is exact for non-GC and GC objects with no false
+positive for aligned non-heap addresses. The scratch case is a dated waiver until P3
+adds the reader scratch check.
 
 ### `value-representation#4`
 
