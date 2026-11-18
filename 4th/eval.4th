@@ -337,18 +337,24 @@ defer baku-eval-ir
 
 variable baku-op-env
 
+\ An operator position holds a function.  A symbol names one, whether it is
+\ written literally or produced by evaluating a variable, so both paths end in
+\ a function-table lookup.  A variable that holds a closure is applied as is.
+: baku-resolve-operator ( value -- closure )
+	dup baku-symbol? if
+		baku-fn-lookup if exit then
+		drop baku-eval-undefined throw
+	then ;
+
 : baku-eval-operator ( ir env -- closure )
 	baku-op-env !
 	dup baku-ir-kind baku-ir-symbol = if
 		dup baku-ir-value baku-op-env @ baku-env-lookup
-		if nip exit then
+		if nip baku-resolve-operator exit then
 		drop
-		dup baku-ir-value baku-fn-lookup
-		if nip exit then
-		2drop baku-eval-undefined throw
-	else
-		baku-op-env @ baku-eval-ir
-	then ;
+		dup baku-ir-value baku-resolve-operator nip exit
+	then
+	baku-op-env @ baku-eval-ir baku-resolve-operator ;
 
 \ Push evaluated arguments so the first argument is deepest, matching a Forth
 \ primitive's ( a b -- result ) convention.

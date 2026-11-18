@@ -1,9 +1,9 @@
 \ Top-level tests: the interactive loop, expression mode and file mode.
 \
-\ Like the native boot test this installs the whole kernel and runs both
-\ initialisers, so it needs the 512 MiB non-GC heap plus the IR and reader
-\ scratch.  Sloth's Debug native execution is far too slow for that boot, so the
-\ test is registered for gforth only (see CMakeLists.txt).
+\ This boots and initialises the whole kernel under the Cheney collector with
+\ the tree-walking interpreter as the only executor.  Sloth's Debug execution
+\ is far too slow for that boot, so the test is registered for gforth only (see
+\ CMakeLists.txt).
 \
 \ Output is the observable boundary of a top level, so the test binds *STOUTPUT*
 \ and *STERROR* to a file stream and reads the bytes back.  The prompt, the
@@ -13,13 +13,14 @@
 [DEFINED] gforth
 [IF]
 	S" ../4th/portability.4th" INCLUDED
-	536870912 baku-nongc-request !
 	S" ../4th/baku.4th" INCLUDED
 [ELSE]
 	S" 4th/portability.4th" INCLUDED
-	536870912 baku-nongc-request !
 	S" 4th/baku.4th" INCLUDED
 [THEN]
+
+baku-gc-create
+baku-gc-activate
 
 : check ( flag code -- )
 	swap if drop else ." BAKU-TEST-FAIL: " . cr abort then ;
@@ -95,8 +96,6 @@ variable test-exp-len
 \ ---------------------------------------------------------------------------
 \ Boot.
 \ ---------------------------------------------------------------------------
-
-' baku-native-install-form is baku-install-form
 
 baku-boot-load-kernel
 

@@ -15,11 +15,10 @@ endif()
 
 include(FetchContent)
 # The pinned corpus contains one form with about 45k cons cells, and Sloth's
-# default stack and dictionary are too small for the reader tests.  The loader
-# test raises the non-GC heap request to 16 MiB.  The native boot test requests
-# 512 MiB because non-GC initialisation keeps every allocation, plus the 4 MiB
-# IR scratch and the 2 MiB reader scratch.  These are test-platform limits; the
-# default Baku sources reserve only 512 KiB.
+# default stack and dictionary are too small for the reader tests.  A boot test
+# runs on the collector, whose semispaces come from the host heap; the symbol
+# area and the kernel suite's override are dictionary reservations.  These are
+# test-platform limits, not build defaults.
 set(SLOTH_DICTIONARY_SIZE 671088640 CACHE STRING
 	"Sloth dictionary size for the Baku test platform" FORCE)
 add_compile_definitions(SLOTH_STACK_SIZE=16384 SLOTH_RETURN_STACK_SIZE=16384)
@@ -192,21 +191,20 @@ file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
 # glob-registered test that is not enabled for Sloth must appear here.
 set(BAKU_NATIVE_BOOT_TESTS
 	boot-native  # initialises the whole kernel; native Debug on Sloth takes minutes
-	kernel       # initialises the whole kernel; native Debug on Sloth takes minutes
-	repl         # boots the whole kernel through the native installer before the REPL
+	gc-boot      # boots and initialises the whole kernel under the collector
+	kernel       # initialises the whole kernel; Debug on Sloth takes minutes
+	repl         # boots the whole kernel before the REPL; Debug on Sloth takes minutes
 	kernel-suite # long collector conformance run with a large semispace
 )
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
 
-	# The native boot acceptance tests (boot-native, kernel, repl) initialise
-	# the whole kernel.  Sloth's Debug native execution takes about 10 minutes
-	# for SHEN.INITIALISE alone and several times that for STLIB.INITIALISE, so
-	# those tests run on gforth.  The full corpus native install still runs on
-	# Sloth in test/native.4th's code path and in the manual install experiment.
-	# kernel-suite is the long collector run and is excluded for the same speed
-	# reason.  The standard-input test reads the CTest input file and is
-	# registered below.
+	# The boot acceptance tests (boot-native, gc-boot, kernel, repl) initialise
+	# the whole kernel.  Sloth's Debug execution takes about 10 minutes for
+	# SHEN.INITIALISE alone and several times that for STLIB.INITIALISE, so
+	# those tests run on gforth.  kernel-suite is the long collector run and is
+	# excluded for the same speed reason.  The standard-input test reads the
+	# CTest input file and is registered below.
 	set(test_targets ${BAKU_REQUIRED_TARGETS})
 	if(test_name IN_LIST BAKU_NATIVE_BOOT_TESTS)
 		list(REMOVE_ITEM test_targets sloth)

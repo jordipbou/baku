@@ -1,26 +1,26 @@
 \ Kernel-level semantics through the booted kernel.
 \
-\ The native boot installs and initialises the whole 43.2 kernel, so this test
-\ has the same acceptance cost as test/boot-native.4th: a 512 MiB non-GC heap
-\ plus the IR and reader scratch, and gforth-only registration (Sloth's Debug
-\ native execution is far too slow for the gate).
+\ This test boots and initialises the whole 43.2 kernel under the Cheney
+\ collector with the tree-walking interpreter as the only executor, so it
+\ carries the full boot cost and is registered for gforth only (Sloth's Debug
+\ execution is far too slow for the gate).
 \
 \ The checks cover the kernel-defined behaviour that Baku must not reimplement:
 \ the input+ compatibility path, zero-place fn/thaw, the kernel vector
 \ accessors and classifiers, and the kernel writer's reader round-trip.  They
-\ are evaluated through BAKU-EVAL-KL, the interpreter reference, which still
-\ dispatches into native kernel closures after a native boot.
+\ are evaluated through BAKU-EVAL-KL, the interpreter.
 
 [DEFINED] gforth
 [IF]
 	S" ../4th/portability.4th" INCLUDED
-	536870912 baku-nongc-request !
 	S" ../4th/baku.4th" INCLUDED
 [ELSE]
 	S" 4th/portability.4th" INCLUDED
-	536870912 baku-nongc-request !
 	S" 4th/baku.4th" INCLUDED
 [THEN]
+
+baku-gc-create
+baku-gc-activate
 
 : check ( flag code -- )
 	swap if drop else ." BAKU-TEST-FAIL: " . cr abort then ;
@@ -37,10 +37,8 @@
 	baku-string baku-prim-eq baku-true = ;
 
 \ ---------------------------------------------------------------------------
-\ Boot and initialise.  This is the same path as the native boot test.
+\ Boot and initialise.
 \ ---------------------------------------------------------------------------
-
-' baku-native-install-form is baku-install-form
 
 baku-boot-load-kernel
 
@@ -169,8 +167,8 @@ variable test-writer-found
 : test-writer-get ( c-addr u -- value )
 	baku-intern baku-global-lookup drop ;
 
-\ Copy a reader form out of the reader scratch block into the non-GC heap, so
-\ the form survives the reads that follow it.
+\ Copy a reader form out of the reader scratch block into the live heap, so the
+\ form survives the reads that follow it.
 : test-copy-form ( v -- v' )
 	dup baku-fixnum? if exit then
 	dup baku-nil = if exit then

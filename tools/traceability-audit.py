@@ -93,14 +93,17 @@ COVERAGE = {
 
     # bootstrap-and-repl.md
     "bootstrap-and-repl#1": (
-        "",
-        "2026-11-18: the collector boot path lands in P2; the current boot tests "
-        "select the native installer, so no test yet boots through the collector.",
+        "baku_gc-boot_gforth, baku_no_build",
+        "gc-boot runs both initialisers under the collector through the default "
+        "interpreter installer and reaches its test marker; the no-build copy does "
+        "the same from 4th/start.4th.",
     ),
     "bootstrap-and-repl#2": (
-        "",
-        "2026-11-18: the GC boot-order test lands in P2; boot-native currently "
-        "activates the collector after a non-GC boot.",
+        "baku_gc-boot_gforth, baku_boot_sloth, baku_boot_gforth",
+        "gc-boot creates and activates the collector before the first kernel read, "
+        "then forces a collection after boot and re-checks the boot globals, the "
+        "installed functions and a live reader form.  boot proves the same load "
+        "order on both targets.",
     ),
     "bootstrap-and-repl#3": (
         "baku_repl_gforth, baku_no_build",
@@ -367,8 +370,9 @@ COVERAGE = {
         "shipped source still names them and boot-native is the user path.",
     ),
     "gc-only-execution#2": (
-        "",
-        "2026-11-18: the collector boot and its post-boot collection land in P2.",
+        "baku_gc-boot_gforth",
+        "gc-boot forces a collection after boot and proves every boot global, the "
+        "installed kernel functions and the live reader form survive.",
     ),
     "gc-only-execution#3": (
         "",
@@ -401,9 +405,9 @@ COVERAGE = {
         "P4.",
     ),
     "gc-only-execution#9": (
-        "",
-        "2026-11-18: the collector-before-kernel boot order is added in P2; the Sloth "
-        "load-order evidence is measured then.",
+        "baku_boot_sloth, baku_boot_gforth, baku_gc-boot_gforth",
+        "boot creates and activates the collector before loading the kernel on both "
+        "targets; gc-boot runs the same order through both initialisers on gforth.",
     ),
 
     # kernel-provenance.md
@@ -605,8 +609,9 @@ COVERAGE = {
         "asserts the created collector's semispace equals the request.",
     ),
     "startup-memory#2": (
-        "",
-        "2026-11-18: the default GC boot is the P2 user path.",
+        "baku_gc-boot_gforth, baku_no_build",
+        "gc-boot and the no-build copy boot under the shipped default requests with "
+        "no out-of-memory; the documented gforth command uses a 64 MiB dictionary.",
     ),
     "startup-memory#3": (
         "",
@@ -614,28 +619,28 @@ COVERAGE = {
         "recorded in the final report.",
     ),
     "startup-memory#4": (
-        "",
-        "2026-11-18: the total-reservation budget assertion is added to gc-boot in P2.",
+        "baku_gc-boot_gforth",
+        "gc-boot asserts two semispaces plus the symbol area is at most 40 MiB.",
     ),
     "startup-memory#5": (
-        "",
-        "2026-11-18: the symbol-area capacity checks land with gc-boot and the suite "
-        "override in P2.",
+        "baku_gc-boot_gforth, baku_kernel-suite_gforth",
+        "gc-boot asserts the default symbol area has free space after the boot; the "
+        "kernel suite boots under its documented 64 MiB symbol-area override.",
     ),
     "startup-memory#6": (
-        "",
-        "2026-11-18: the post-boot collection and allocation loop are added to gc-boot "
-        "in P2.",
+        "baku_gc-boot_gforth",
+        "gc-boot forces a collection after boot and runs a million-cons allocation "
+        "loop that triggers collections and still leaves free space.",
     ),
     "startup-memory#7": (
-        "",
-        "2026-11-18: the user entry and no-build flags shrink to the measured "
-        "dictionary in P1 and P2.",
+        "baku_no_build",
+        "The no-build copy boots 4th/start.4th with -m 64M -d 16M -r 16M and no "
+        "512/640/768 MiB reservation.",
     ),
     "startup-memory#8": (
-        "",
-        "2026-11-18: the shared defaults are wired through start.4th, gc-boot, "
-        "no-build and the suite in P1 and P2.",
+        "baku_gc-boot_gforth, baku_no_build, baku_kernel-suite_gforth",
+        "start.4th, gc-boot and the no-build copy use the shipped portability "
+        "defaults; the kernel suite documents and asserts its larger override.",
     ),
 
     # tail-calls.md

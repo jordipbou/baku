@@ -7,11 +7,12 @@
 \ blocking.  The final pass and fail counts are recorded and compared against the
 \ pinned baseline at the end of this file.
 \
-\ Why GC mode: non-GC keeps every allocation.  The native boot already keeps
-\ about 490 MiB, and the `primes` report allocates several GiB; a measured 2 GiB
-\ non-GC run exhausted the heap inside `(prime*? 1000003)`.  The collector is the
-\ only mode that can finish the suite.  GC mode uses the interpreter because
-\ native code lives in the dictionary, which the collector does not trace.
+\ Why the collector: it is the boot path and the interpreter is the executor.
+\ A non-GC run keeps every allocation; a measured 2 GiB run exhausted the heap
+\ inside `(prime*? 1000003)`, and the `primes` report allocates several GiB.
+\ The suite therefore creates and activates the collector before the kernel
+\ load, exactly as 4th/start.4th does, and uses larger requests for its own
+\ allocation profile.
 \
 \ Why gforth only: Sloth's Debug execution is too slow for this long suite.
 \ The collector itself runs on both targets; the stack-scan adapter is ANS-only.

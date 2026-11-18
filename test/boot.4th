@@ -1,10 +1,10 @@
 \ Kernel boot loader tests.
 \
-\ The loader keeps the IR of every kernel definition in the non-GC heap in the
-\ interpreter backend, so this test raises the heap request before loading the
-\ tree.  The default request stays small for every other test.  Initialisation
-\ is not run here: interpreter EVAL-KL allocates permanent IR per call and needs
-\ far more than the loader budget; that path belongs to the native backend.
+\ The loader runs on the collector with the tree-walking interpreter as the
+\ only executor.  This test creates and activates the collector with the
+\ shipped defaults before reading the tree, so every definition's IR is a GC
+\ object.  Initialisation is not run here: it belongs to test/gc-boot.4th and
+\ test/kernel.4th.
 \
 \ gforth resolves a nested INCLUDED relative to the including file; Sloth
 \ resolves it relative to the working directory.
@@ -12,13 +12,14 @@
 [DEFINED] gforth
 [IF]
 	S" ../4th/portability.4th" INCLUDED
-	16777216 baku-nongc-request !
 	S" ../4th/baku.4th" INCLUDED
 [ELSE]
 	S" 4th/portability.4th" INCLUDED
-	16777216 baku-nongc-request !
 	S" 4th/baku.4th" INCLUDED
 [THEN]
+
+baku-gc-create
+baku-gc-activate
 
 : check ( flag code -- )
 	swap if drop else ." BAKU-TEST-FAIL: " . cr abort then ;
@@ -31,6 +32,8 @@
 \ ---------------------------------------------------------------------------
 
 baku-boot-load-kernel
+
+baku-gc-active? 29 check
 
 baku-boot-files @ 23 1 check-num
 baku-boot-forms @ 1124 2 check-num

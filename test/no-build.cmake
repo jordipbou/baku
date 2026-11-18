@@ -44,7 +44,7 @@ file(WRITE "${work}/tree/launcher.fs"
 file(WRITE "${work}/shen.stdin" "(+ 1 2)\n(factorial 10)\n")
 
 execute_process(
-	COMMAND "${GFORTH_EXECUTABLE}" -m 768M -d 16M -r 16M "${work}/tree/launcher.fs"
+	COMMAND "${GFORTH_EXECUTABLE}" -m 64M -d 16M -r 16M "${work}/tree/launcher.fs"
 	WORKING_DIRECTORY "${work}/tree"
 	INPUT_FILE "${work}/shen.stdin"
 	RESULT_VARIABLE result

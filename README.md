@@ -38,30 +38,31 @@ the shipped one-line user entry is `4th/start.4th`. Forth loads every layer with
 Baku.
 
 To reach the Shen top level, include the user entry from the repository root.
-The target must be started with enough dictionary space for the non-GC boot
-(about 490 MiB of retained kernel data); on gforth:
+The dictionary only holds the shipped Forth and the permanent symbol block, so
+a small dictionary is enough; the data and return stacks must hold the
+deepest reader and initialisation recursion. On gforth:
 
 ```sh
-gforth -m 768M -d 16M -r 16M
+gforth -m 64M -d 16M -r 16M
 s" 4th/start.4th" INCLUDED
 ```
 
 or as one command:
 
 ```sh
-gforth -m 768M -d 16M -r 16M -e 's" 4th/start.4th" INCLUDED'
+gforth -m 64M -d 16M -r 16M -e 's" 4th/start.4th" INCLUDED'
 ```
 
-`4th/start.4th` raises the non-GC heap request before `4th/value.4th` loads,
-loads `4th/baku.4th`, selects the native installer, reads the 23 vendored
-KLambda files, runs `shen.initialise` then `stlib.initialise`, prints
-`BAKU-STARTED`, and enters `baku-repl`. It takes about 45 seconds on gforth.
+`4th/start.4th` sizes the permanent symbol area and both semispaces from the
+defaults in `4th/portability.4th`, loads `4th/baku.4th`, creates and activates
+the Cheney collector, reads the 23 vendored KLambda files, runs
+`shen.initialise` then `stlib.initialise`, prints `BAKU-STARTED`, and enters
+`baku-repl`. It takes about two minutes on gforth.
 
 The dictionary flags are a target requirement, not a build step. Why the entry
-file exists instead of one word inside `4th/baku.4th`: the non-GC block is a
-dictionary reservation sized when `4th/value.4th` loads, the native installer is
-selected by the caller so the interpreter remains available as the reference, and
-the kernel globals are bound after loading but before initialisation. Loading the
+file exists instead of one word inside `4th/baku.4th`: the symbol-area and
+semispace requests are read when `4th/value.4th` and `4th/gc.4th` load, and the
+kernel globals are bound after loading but before initialisation. Loading the
 library by itself therefore cannot also choose a lifetime policy without forcing
 one on every embedder.
 
@@ -80,11 +81,11 @@ Floating, File, Exception and Double-Number; see `4th/probe.4th`.
 The one-line session spelled out, for an embedder that wants to pick each step:
 
 ```sh
-gforth -m 768M -d 16M -r 16M
+gforth -m 64M -d 16M -r 16M
 s" 4th/portability.4th" INCLUDED
-536870912 baku-nongc-request !
 s" 4th/baku.4th" INCLUDED
-' baku-native-install-form is baku-install-form
+baku-gc-create
+baku-gc-activate
 baku-boot-load-kernel
 baku-boot-globals
 baku-boot-initialise
@@ -92,9 +93,10 @@ baku-repl
 ```
 
 `baku-boot-initialise` runs `shen.initialise` then `stlib.initialise`, in that
-order. The kernel suite's collector boot is the alternative lifetime policy: a
-64 MiB non-GC symbol area plus a 256 MiB allocated semispace, with the
-interpreter as the executor.
+order. The defaults in `4th/portability.4th` size the permanent symbol area at
+2 MiB and each semispace at 16 MiB; set the request cells before including the
+tree to change them. The kernel suite overrides them with a 64 MiB symbol area
+and a 256 MiB semispace because it creates gensyms and loads programs.
 
 On Sloth the same session works from the repository root; start Sloth with a
 dictionary large enough for the heap. The `[DEFINED] gforth` switch at the top of

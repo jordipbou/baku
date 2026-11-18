@@ -45,7 +45,7 @@ variable diff-expect-len
 	baku-read-form 0= if
 		." BAKU-TEST-FAIL: reader refused a differential form" cr abort
 	then
-	baku-native-eval-kl ;
+	baku-eval-kl ;
 
 \ Convert an atom result to text with the same formatter the kernel STR
 \ primitive uses, then emit one compare line.

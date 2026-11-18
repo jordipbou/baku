@@ -62,10 +62,11 @@ guard.
 Boot reaches a marker after `shen.initialise` and `stlib.initialise` without a Forth
 exception, using the collector and the interpreter installer.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`, `baku_no_build`
 
-Evidence: 2026-11-18: the collector boot path lands in P2; the current boot tests select
-the native installer, so no test yet boots through the collector.
+Evidence: gc-boot runs both initialisers under the collector through the default
+interpreter installer and reaches its test marker; the no-build copy does the same from
+4th/start.4th.
 
 ### `bootstrap-and-repl#2`
 
@@ -73,10 +74,11 @@ A boot-order test creates and activates the collector before the first allocatio
 could trigger a collection; a forced collection after boot preserves all boot globals,
 installed functions and the reader's live forms.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`, `baku_boot_sloth`, `baku_boot_gforth`
 
-Evidence: 2026-11-18: the GC boot-order test lands in P2; boot-native currently
-activates the collector after a non-GC boot.
+Evidence: gc-boot creates and activates the collector before the first kernel read, then
+forces a collection after boot and re-checks the boot globals, the installed functions
+and a live reader form.  boot proves the same load order on both targets.
 
 ### `bootstrap-and-repl#3`
 
@@ -603,9 +605,10 @@ shipped source still names them and boot-native is the user path.
 A forced collection after boot preserves every boot global, every installed kernel
 function, a live reader form and the current top-level state.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`
 
-Evidence: 2026-11-18: the collector boot and its post-boot collection land in P2.
+Evidence: gc-boot forces a collection after boot and proves every boot global, the
+installed kernel functions and the live reader form survive.
 
 ### `gc-only-execution#3`
 
@@ -676,10 +679,10 @@ Evidence: 2026-11-18: the removed-name static check and the source deletions lan
 The library load order is valid on both gforth and Sloth when the collector is created
 and activated before the kernel boot.
 
-Tests: none
+Tests: `baku_boot_sloth`, `baku_boot_gforth`, `baku_gc-boot_gforth`
 
-Evidence: 2026-11-18: the collector-before-kernel boot order is added in P2; the Sloth
-load-order evidence is measured then.
+Evidence: boot creates and activates the collector before loading the kernel on both
+targets; gc-boot runs the same order through both initialisers on gforth.
 
 ## `kernel-provenance.md`
 
@@ -1075,9 +1078,10 @@ request and semispace request with no out-of-memory. The documented gforth comma
 only a small dictionary sized to the shipped Forth code plus the symbol block, never the
 old 512 MiB non-GC heap or a 640/768 MiB dictionary reservation.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`, `baku_no_build`
 
-Evidence: 2026-11-18: the default GC boot is the P2 user path.
+Evidence: gc-boot and the no-build copy boot under the shipped default requests with no
+out-of-memory; the documented gforth command uses a 64 MiB dictionary.
 
 ### `startup-memory#3`
 
@@ -1096,9 +1100,9 @@ recorded in the final report.
 The chosen defaults have headroom and the total reservation, meaning both semispaces
 plus the permanent symbol area, is at most about 40 MiB.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`
 
-Evidence: 2026-11-18: the total-reservation budget assertion is added to gc-boot in P2.
+Evidence: gc-boot asserts two semispaces plus the symbol area is at most 40 MiB.
 
 ### `startup-memory#5`
 
@@ -1106,40 +1110,40 @@ The default symbol area holds every symbol interned by the boot without exhausti
 kernel suite's documented symbol-area override holds the gensyms and loaded-program
 symbols it creates.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`, `baku_kernel-suite_gforth`
 
-Evidence: 2026-11-18: the symbol-area capacity checks land with gc-boot and the suite
-override in P2.
+Evidence: gc-boot asserts the default symbol area has free space after the boot; the
+kernel suite boots under its documented 64 MiB symbol-area override.
 
 ### `startup-memory#6`
 
 A forced post-boot collection and an allocation-heavy loop complete without exhausting
 the default semispace or immediately re-collecting.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`
 
-Evidence: 2026-11-18: the post-boot collection and allocation loop are added to gc-boot
-in P2.
+Evidence: gc-boot forces a collection after boot and runs a million-cons allocation loop
+that triggers collections and still leaves free space.
 
 ### `startup-memory#7`
 
 The documented gforth command and the no-build test boot without a 512 MiB, 640 MiB or
 768 MiB reservation.
 
-Tests: none
+Tests: `baku_no_build`
 
-Evidence: 2026-11-18: the user entry and no-build flags shrink to the measured
-dictionary in P1 and P2.
+Evidence: The no-build copy boots 4th/start.4th with -m 64M -d 16M -r 16M and no
+512/640/768 MiB reservation.
 
 ### `startup-memory#8`
 
 The user entry, the GC boot test, the no-build test and the kernel suite use the same
 defaults or a documented override that does not change model semantics.
 
-Tests: none
+Tests: `baku_gc-boot_gforth`, `baku_no_build`, `baku_kernel-suite_gforth`
 
-Evidence: 2026-11-18: the shared defaults are wired through start.4th, gc-boot, no-build
-and the suite in P1 and P2.
+Evidence: start.4th, gc-boot and the no-build copy use the shipped portability defaults;
+the kernel suite documents and asserts its larger override.
 
 ## `tail-calls.md`
 
