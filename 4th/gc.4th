@@ -276,8 +276,12 @@ variable baku-gc-table-entry
 		false
 	then ;
 
-: baku-gc-create ( semispace-bytes -- )
+\ The caller sizes the heap by setting BAKU-GC-SEMISPACE-REQUEST before creation;
+\ the request is read here so tests and embedders share one creation API.  Two
+\ semispaces of that size are allocated from the host heap.
+: baku-gc-create ( -- )
 	baku-gc-created? @ if baku-invalid-argument throw then
+	baku-gc-semispace-request @
 	dup 0 <= if baku-invalid-argument throw then
 	dup baku-gc-semispace !
 	allocate throw baku-gc-from-start !

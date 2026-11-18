@@ -258,7 +258,8 @@ variable matrix-call-len
 	baku-nil matrix-expected-text ! ;
 
 : matrix-pass-gc ( -- )
-	131072 baku-gc-create
+	131072 baku-gc-semispace-request !
+	baku-gc-create
 	baku-gc-activate
 	2 matrix-pass !
 	0 matrix-n !

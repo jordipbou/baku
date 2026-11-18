@@ -40,16 +40,18 @@
 	S" 4th/baku.4th" INCLUDED
 [THEN]
 
-\ 256 MiB per semispace.  The booted kernel's live set is about 6.5 MiB, but the
+\ 256 MiB per semispace.  The booted kernel's live set is about 6 MiB, but the
 \ suite allocates heavily; a larger semispace trades memory for far fewer
 \ collections.  `ALLOCATE` uses the host heap, so this is not the gforth `-m`
 \ dictionary.
 \
 \ The non-GC heap is permanent, and interned symbols are always placed there.
 \ The suite creates a large number of symbols (gensyms and loaded programs), so
-\ the 512 KiB default fills up after most of the kernel tests; 64 MiB leaves
-\ ample headroom without changing any measurement.
-268435456 baku-gc-create
+\ it overrides the shipped 2 MiB symbol-area default; 64 MiB leaves ample
+\ headroom without changing any measurement.  This is a suite override, not a
+\ boot default.
+268435456 baku-gc-semispace-request !
+baku-gc-create
 baku-gc-activate
 
 baku-boot-load-kernel

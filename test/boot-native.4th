@@ -93,7 +93,8 @@ s" (arity abs)" ev baku-fixnum-value 1 13 check-num
 s" baku.root.old" baku-intern
 1 baku-fixnum baku-global-define drop
 
-131072 baku-gc-create
+131072 baku-gc-semispace-request !
+baku-gc-create
 baku-gc-created? @ 14 check
 baku-gc-collections @ 0= 15 check
 

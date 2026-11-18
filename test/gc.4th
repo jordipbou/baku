@@ -51,8 +51,10 @@ gc-pre-list 1 baku-gc-root+
 	loop ;
 
 : gc-supported-test ( -- )
-	65536 baku-gc-create
+	65536 baku-gc-semispace-request !
+	baku-gc-create
 	baku-gc-created? @ 1 check
+	baku-gc-semispace @ 65536 = 56 check
 	baku-gc-active? 0= 2 check
 	baku-gc-activate
 	baku-gc-active? 3 check

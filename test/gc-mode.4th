@@ -99,7 +99,8 @@ gcm-value 1 baku-gc-root+
 	baku-mode baku-mode-nongc = 10 check
 
 	\ GC mode selects the interpreter and generates no dictionary code.
-	131072 baku-gc-create
+	131072 baku-gc-semispace-request !
+	baku-gc-create
 	baku-gc-created? @ 11 check
 	baku-gc-activate
 	baku-gc-active? 12 check

@@ -1063,9 +1063,10 @@ Evidence: The test requires the shipped .4th file set to be unchanged after the 
 Creating the collector reads a `baku-gc-semispace-request` cell that a caller can set
 before creation.
 
-Tests: none
+Tests: `baku_gc_sloth`, `baku_gc_gforth`
 
-Evidence: 2026-11-18: the request cell and its assertion are added in P1.
+Evidence: The GC test sets baku-gc-semispace-request before BAKU-GC-CREATE and asserts
+the created collector's semispace equals the request.
 
 ### `startup-memory#2`
 

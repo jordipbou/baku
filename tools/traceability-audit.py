@@ -600,8 +600,9 @@ COVERAGE = {
 
     # startup-memory.md
     "startup-memory#1": (
-        "",
-        "2026-11-18: the request cell and its assertion are added in P1.",
+        "baku_gc_sloth, baku_gc_gforth",
+        "The GC test sets baku-gc-semispace-request before BAKU-GC-CREATE and "
+        "asserts the created collector's semispace equals the request.",
     ),
     "startup-memory#2": (
         "",
