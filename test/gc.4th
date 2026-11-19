@@ -44,6 +44,10 @@ gc-pre-list 1 baku-gc-root+
 	loop ;
 
 : gc-supported-test ( -- )
+	\ Activation before creation is the one remaining unsupported path.
+	['] baku-gc-activate catch baku-gc-unsupported = 61 check
+	baku-gc-created? @ 0= 62 check
+	baku-gc-active? 0= 63 check
 	65536 baku-gc-semispace-request !
 	baku-gc-create
 	baku-gc-created? @ 1 check

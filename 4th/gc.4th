@@ -55,14 +55,9 @@ variable baku-gc-tmp2
 0 baku-gc-collections !
 -1 baku-gc-region !
 
-\ Target stack-root adapter.  The default is the documented unsupported case.
-defer baku-gc-scan-stacks
-: baku-gc-scan-stacks-none ( -- ) ;
-' baku-gc-scan-stacks-none is baku-gc-scan-stacks
-
-defer baku-gc-stack-scan?
-: baku-gc-stack-scan-none ( -- flag ) false ;
-' baku-gc-stack-scan-none is baku-gc-stack-scan?
+\ The data-stack root adapter is a direct definition from Gc-Stack.4th; it is
+\ included below, after BAKU-GC-COPY and before the first user.  There is no
+\ runtime capability flag: the collector path is the only execution path.
 
 \ ---------------------------------------------------------------------------
 \ Copying and tracing
@@ -106,6 +101,15 @@ variable baku-gc-copy-new
 	baku-gc-copy-new @ baku-gc-copy-total @ + baku-gc-to-here !
 	baku-gc-copy-new @ ;
 
+\ The stack adapter uses BAKU-GC-COPY, so it loads here, before any collection
+\ code that calls BAKU-GC-SCAN-STACKS is compiled.  The spelling follows the
+\ same include convention as the rest of the tree.
+[DEFINED] gforth
+[IF]
+	S" gc-stack.4th" INCLUDED
+[ELSE]
+	S" 4th/gc-stack.4th" INCLUDED
+[THEN]
 
 : baku-gc-root-cell ( addr -- )
 	dup @ baku-gc-copy swap ! ;
@@ -289,7 +293,6 @@ variable baku-gc-table-entry
 : baku-gc-activate ( -- )
 	baku-gc-activated? @ if exit then
 	baku-gc-created? @ 0= if baku-gc-unsupported throw then
-	baku-gc-stack-scan? 0= if baku-gc-unsupported throw then
 	baku-gc-from-here baku-gc-from-end baku-use-heap
 	1 baku-gc-activated? ! ;
 
@@ -348,7 +351,7 @@ variable baku-gc-table-entry
 ' baku-gc-alloc-full-real is baku-alloc-full
 
 \ ---------------------------------------------------------------------------
-\ Value-layer roots and the target stack adapter
+\ Value-layer roots
 \ ---------------------------------------------------------------------------
 
 baku-cat-a 1 baku-gc-root+
@@ -357,12 +360,3 @@ baku-quote-src 1 baku-gc-root+
 baku-slice-src 1 baku-gc-root+
 baku-error-string-src 1 baku-gc-root+
 baku-error-copy-src 1 baku-gc-root+
-
-\ The stack adapter binds BAKU-GC-SCAN-STACKS and BAKU-GC-STACK-SCAN?; the
-\ spelling follows the same include convention as the rest of the tree.
-[DEFINED] gforth
-[IF]
-	S" gc-stack.4th" INCLUDED
-[ELSE]
-	S" 4th/gc-stack.4th" INCLUDED
-[THEN]

@@ -15,10 +15,11 @@
 \ BEGIN ... WHILE ... REPEAT is used instead of DO ... LOOP: DO keeps its loop
 \ control on the return stack, underneath the moved cells.
 \
-\ If BAKU-GC-COPY throws during the scan, the CATCH in BAKU-GC-COLLECT restores
-\ the data-stack pointer to the catch point.  The slots already written hold
-\ updated values and the untouched slots hold the originals; the heap has not
-\ flipped, so both are valid.
+\ The collector requires a well-formed heap: every root and table binding must
+\ point at the header cell of a from-space object.  With that precondition the
+\ copied live bytes are at most the from-space used, so a copy cannot overflow
+\ the equal-sized to-space.  A copy throw therefore means the heap broke the
+\ precondition, and a partially copied collection is not safe to resume.
 
 variable baku-gc-ds-total
 variable baku-gc-ds-count
@@ -33,8 +34,4 @@ variable baku-gc-ds-count
 		r> baku-gc-copy -1 baku-gc-ds-count +!
 	repeat ;
 
-: baku-gc-scan-stacks-real ( -- ) baku-gc-scan-data-stack ;
-: baku-gc-stack-scan-real ( -- flag ) true ;
-
-' baku-gc-scan-stacks-real is baku-gc-scan-stacks
-' baku-gc-stack-scan-real is baku-gc-stack-scan?
+: baku-gc-scan-stacks ( -- ) baku-gc-scan-data-stack ;
