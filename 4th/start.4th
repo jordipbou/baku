@@ -36,6 +36,12 @@
 baku-gc-create
 baku-gc-activate
 
+\ Install the KLambda compatibility and top-level helpers after activation so
+\ their closures and IR are GC objects; 4th/baku.4th cannot do this at load
+\ time because the collector does not exist yet.
+baku-compat-init
+baku-repl-init
+
 baku-boot-load-kernel
 baku-boot-globals
 baku-boot-initialise

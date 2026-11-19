@@ -176,19 +176,22 @@ variable baku-repl-echo
 	baku-stdin-stream true baku-repl-stream ;
 
 \ ---------------------------------------------------------------------------
-\ Kernel-side helpers.  They are installed once as interpreted KLambda
-\ definitions (the same path INPUT+ uses), so the kernel functions they name are
-\ resolved when the top level runs, not when this layer loads.
+\ Kernel-side helpers.  BAKU-REPL-INIT installs them once as interpreted
+\ KLambda definitions after the collector is activated, so their closures and
+\ IR live in the GC heap.  They use the same install path as INPUT+, and the
+\ kernel functions they name are resolved when the top level runs, not when
+\ this layer loads.
 \ ---------------------------------------------------------------------------
 
 \ Parse-only check used for continuation.  READ-FROM-STRING-UNPROCESSED is the
 \ kernel's try-parse boundary: it fails on an incomplete form and succeeds on a
 \ complete one, without macroexpanding or typechecking first.
-s" (defun baku.repl-parse (Text) (read-from-string-unprocessed Text))"
-	baku-compat-eval-source
 
 \ One REPL line: the kernel reader, package mapping, history and the
 \ type-check-aware evaluator, in the same order SHEN.READ-EVALUATE-PRINT uses.
 \ A blank line is skipped, like LINEREAD skipping an empty line.
-s" (defun baku.repl-eval (Text) (if (shen.+string? (shen.trim-it Text)) (let Forms (read-from-string Text) (do (set shen.*it* Text) (let History (shen.update-history) (shen.evaluate-lineread (shen.package-user-input (value shen.*package*) Forms) History (value shen.*tc*))))) shen.skip))"
-	baku-compat-eval-source
+: baku-repl-init ( -- )
+	s" (defun baku.repl-parse (Text) (read-from-string-unprocessed Text))"
+		baku-compat-eval-source
+	s" (defun baku.repl-eval (Text) (if (shen.+string? (shen.trim-it Text)) (let Forms (read-from-string Text) (do (set shen.*it* Text) (let History (shen.update-history) (shen.evaluate-lineread (shen.package-user-input (value shen.*package*) Forms) History (value shen.*tc*))))) shen.skip))"
+		baku-compat-eval-source ;

@@ -370,11 +370,13 @@ COVERAGE = {
     # gc-only-execution.md
     "gc-only-execution#1": (
         "baku_region_audit, baku_region_audit_selftest, baku_gc-mode_sloth, "
-        "baku_gc-mode_gforth, baku_gc-boot_gforth",
+        "baku_gc-mode_gforth, baku_gc-boot_gforth, baku_repl_gforth",
         "The region audit rejects every removed backend, mode and scratch name in "
         "shipped 4th/, test/ and CMakeLists.txt and its self-test proves an injected "
         "name fails; gc-mode and gc-boot prove the booted path is the collector plus "
-        "the interpreter, with non-GC memory confined to symbols and reader scratch.",
+        "the interpreter, with non-GC memory confined to symbols and reader scratch; "
+        "gc-boot and repl install the compatibility and top-level helpers after "
+        "activation and assert their closures and IR are GC objects.",
     ),
     "gc-only-execution#2": (
         "baku_gc-boot_gforth",

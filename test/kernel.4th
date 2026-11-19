@@ -21,6 +21,8 @@
 
 baku-gc-create
 baku-gc-activate
+baku-compat-init
+baku-repl-init
 
 : check ( flag code -- )
 	swap if drop else ." BAKU-TEST-FAIL: " . cr abort then ;

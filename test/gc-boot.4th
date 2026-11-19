@@ -38,6 +38,12 @@ baku-gc-active? 0= 3 check
 baku-gc-activate
 baku-gc-active? 4 check
 
+\ The user entry installs the compatibility and top-level KLambda helpers after
+\ activation, so their closures and IR are GC objects, not permanent non-GC
+\ code.
+baku-compat-init
+baku-repl-init
+
 \ ---------------------------------------------------------------------------
 \ Boot: the loader, the host globals and both initialisers.
 \ ---------------------------------------------------------------------------
@@ -126,5 +132,20 @@ gb-language-ok? 24 check
 s" factorial" baku-intern baku-fn-lookup nip 25 check
 gb-form @ baku-cons? 26 check
 gb-form @ baku-tl baku-tl baku-hd baku-fixnum-value 3 = 27 check
+
+\ The compatibility and top-level helpers installed after activation have their
+\ closure records and IR in the GC heap, so the permanent non-GC block holds no
+\ compiled code or interpreter IR.
+s" input+" gb-fn
+dup baku-region-of baku-region-gc = 28 check
+baku-closure-code baku-region-of baku-region-gc = 29 check
+
+s" baku.repl-parse" gb-fn
+dup baku-region-of baku-region-gc = 30 check
+baku-closure-code baku-region-of baku-region-gc = 31 check
+
+s" baku.repl-eval" gb-fn
+dup baku-region-of baku-region-gc = 32 check
+baku-closure-code baku-region-of baku-region-gc = 33 check
 
 ." BAKU-TEST-DONE" cr

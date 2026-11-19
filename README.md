@@ -55,10 +55,12 @@ gforth -m 64M -d 16M -r 16M -e 's" 4th/start.4th" INCLUDED'
 
 `4th/start.4th` sizes the permanent symbol area and both semispaces from the
 defaults in `4th/portability.4th`, loads `4th/baku.4th`, creates and activates
-the Cheney collector, reads the 23 vendored KLambda files, runs
-`shen.initialise` then `stlib.initialise`, prints `BAKU-STARTED`, and enters
-`baku-repl`. The default boot takes about two minutes on gforth (measured 108 s
-and about 47 MiB peak RSS with gforth 0.7.9 and these flags).
+the Cheney collector, installs the compatibility and top-level KLambda helpers
+with `baku-compat-init` and `baku-repl-init` so their closures and IR are GC
+objects, reads the 23 vendored KLambda files, runs `shen.initialise` then
+`stlib.initialise`, prints `BAKU-STARTED`, and enters `baku-repl`. The default
+boot takes about two minutes on gforth (measured 108 s and about 47 MiB peak RSS
+with gforth 0.7.9 and these flags).
 
 The dictionary flags are a target requirement, not a build step. Why the entry
 file exists instead of one word inside `4th/baku.4th`: the symbol-area and
@@ -87,11 +89,17 @@ s" 4th/portability.4th" INCLUDED
 s" 4th/baku.4th" INCLUDED
 baku-gc-create
 baku-gc-activate
+baku-compat-init
+baku-repl-init
 baku-boot-load-kernel
 baku-boot-globals
 baku-boot-initialise
 baku-repl
 ```
+
+`baku-compat-init` installs `input+` and `baku-repl-init` installs the two
+top-level helpers. Both must run after `baku-gc-activate`, so their interpreted
+closures and IR are allocated in the GC heap; `4th/baku.4th` only defines them.
 
 `baku-boot-initialise` runs `shen.initialise` then `stlib.initialise`, in that
 order. The defaults in `4th/portability.4th` size the permanent symbol area at
@@ -134,9 +142,9 @@ consume the earlier representation.
 | `4th/frontend.4th` | Form validation, vector IR and shared tail-position analysis |
 | `4th/eval.4th` | Tree-walking interpreter, the only executor |
 | `4th/primitives.4th` | KLambda host primitives on ANS Forth words |
-| `4th/compat.4th` | `input+`, installed as an interpreted KLambda definition |
+| `4th/compat.4th` | `baku-compat-init` installs `input+` as an interpreted KLambda definition after collector activation |
 | `4th/boot.4th` | Kernel load manifest, host globals and the two initialisers |
-| `4th/repl.4th` | Top level: standard input, expression mode and file mode |
+| `4th/repl.4th` | Top level: standard input, expression mode and file mode; `baku-repl-init` installs its KLambda helpers |
 | `4th/start.4th` | One-line user entry: collector boot, kernel load and REPL |
 
 The reader produces forms; the front end lowers a form into vector IR; the
@@ -303,7 +311,9 @@ kernel also calls it as a function, so it is registered as an arity-1 primitive
 closure over the Forth entry, not as a second evaluator. `input+` is different:
 the kernel has no `defun` for it, so `4th/compat.4th` installs the two-place
 `(defun input+ (X Y) (shen.input-h+ X Y))` once as interpreted KLambda
-(port-upgrades 41.3).
+(port-upgrades 41.3). `baku-compat-init` and `baku-repl-init` install these
+helpers after collector activation, so their closures and vector IR live in the
+GC heap; the permanent non-GC block holds only interned symbols.
 
 Arithmetic follows Shen, not Forth: `/` returns an exact integer quotient when
 the fixnums divide exactly and a float otherwise, and division by any numeric
@@ -344,8 +354,10 @@ The layers and their tests:
 - `test/gc-mode.4th`: the collector-active execution path, including currying,
   `trap-error`, non-callable and over-applied errors, and 100,000-deep self and
   mutual tail chains on both targets;
-- `test/gc-boot.4th`: the full user boot under the shipped defaults, followed by a
-  forced collection that must preserve the boot state;
+- `test/gc-boot.4th`: the full user boot under the shipped defaults, including
+  the post-activation helper install, followed by a forced collection that must
+  preserve the boot state; it also proves those helpers' closures and IR are GC
+  objects;
 - `test/conformance.4th`, `test/differential.4th`,
   `test/differential-targets.cmake`: a fixed program set on both targets with
   byte-identical output (marked lines for the differential, everything through

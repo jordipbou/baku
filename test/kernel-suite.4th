@@ -53,6 +53,8 @@
 268435456 baku-gc-semispace-request !
 baku-gc-create
 baku-gc-activate
+baku-compat-init
+baku-repl-init
 
 baku-boot-load-kernel
 

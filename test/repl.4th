@@ -21,6 +21,8 @@
 
 baku-gc-create
 baku-gc-activate
+baku-compat-init
+baku-repl-init
 
 : check ( flag code -- )
 	swap if drop else ." BAKU-TEST-FAIL: " . cr abort then ;
@@ -215,5 +217,27 @@ s" baku-repl-script.kl" delete-file 0= 17 check
 
 s" baku-repl-expr.out" delete-file 0= 18 check
 s" baku-repl-prompt.out" delete-file 0= 19 check
+
+\ ---------------------------------------------------------------------------
+\ The compatibility and top-level helpers are installed after collector
+\ activation, so their closure records and IR are GC objects.
+\ ---------------------------------------------------------------------------
+
+: test-fn ( c-addr u -- closure )
+	baku-intern baku-fn-lookup 0= if
+		." BAKU-TEST-FAIL: missing installed helper" cr abort
+	then ;
+
+s" input+" test-fn
+dup baku-region-of baku-region-gc = 20 check
+baku-closure-code baku-region-of baku-region-gc = 21 check
+
+s" baku.repl-parse" test-fn
+dup baku-region-of baku-region-gc = 22 check
+baku-closure-code baku-region-of baku-region-gc = 23 check
+
+s" baku.repl-eval" test-fn
+dup baku-region-of baku-region-gc = 24 check
+baku-closure-code baku-region-of baku-region-gc = 25 check
 
 ." BAKU-TEST-DONE" cr

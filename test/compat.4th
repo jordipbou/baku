@@ -1,10 +1,10 @@
 \ Baku KLambda compatibility definitions.
 \
 \ Shen 43.2 registers INPUT+ as an arity-2 function but never defines it; the
-\ kernel macro rewrites (input+ Type) into SHEN.INPUT-H+.  This test proves the
-\ shipped compatibility layer installs a two-place, currying, KLambda-level
-\ INPUT+ and that the delegate target is resolved when INPUT+ is applied, not
-\ when it is installed, so the layer can load before the kernel.
+\ kernel macro rewrites (input+ Type) into SHEN.INPUT-H+.  This test proves
+\ BAKU-COMPAT-INIT installs a two-place, currying, KLambda-level INPUT+ and that
+\ the delegate target is resolved when INPUT+ is applied, not when it is
+\ installed, so the layer can load before the kernel.
 
 [DEFINED] gforth
 [IF]
@@ -12,6 +12,11 @@
 [ELSE]
 	S" 4th/baku.4th" INCLUDED
 [THEN]
+
+\ This layer test has no collector, so the install runs on the non-GC bump
+\ heap; test/gc-boot.4th and test/repl.4th assert the shipped boot installs the
+\ same definitions in the GC heap.
+baku-compat-init
 
 : check ( flag code -- )
 	swap if drop else ." BAKU-TEST-FAIL: " . cr abort then ;
