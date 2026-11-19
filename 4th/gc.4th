@@ -26,14 +26,8 @@
 \ in its low byte (1..8), while a forwarding address is cell-aligned and has a
 \ zero low byte.  That is the forwarding marker, including for zero-length
 \ strings and errors.
-\
-\ Arenas may hold GC references, but the GC must not hold arena references and
-\ must not move while an arena exists.  BAKU-GC-ACTIVE? is therefore false while
-\ an arena is active, activation is refused, and a collection is refused.  The
-\ arena layer binds BAKU-GC-ARENA-ACTIVE? after loading.
 
 -282 constant baku-gc-inactive
--283 constant baku-gc-arena-active
 -284 constant baku-gc-unsupported
 
 variable baku-gc-created?
@@ -60,11 +54,6 @@ variable baku-gc-tmp2
 0 baku-gc-collecting? !
 0 baku-gc-collections !
 -1 baku-gc-region !
-
-\ The arena layer binds this; before it loads there can be no arena.
-defer baku-gc-arena-active?
-: baku-gc-arena-active-none ( -- flag ) false ;
-' baku-gc-arena-active-none is baku-gc-arena-active?
 
 \ Target stack-root adapter.  The default is the documented unsupported case.
 defer baku-gc-scan-stacks
@@ -96,8 +85,8 @@ variable baku-gc-copy-new
 : baku-gc-forward? ( header -- flag ) 0< ;
 : baku-gc-forwarded ( header -- addr ) baku-gc-forward-bit invert and ;
 
-\ Copy one from-space object and return its to-space address.  Non-GC, arena
-\ and immediate values are returned unchanged.  An already-forwarded object
+\ Copy one from-space object and return its to-space address.  Non-GC and
+\ immediate values are returned unchanged.  An already-forwarded object
 \ returns the address stored in its old header.
 : baku-gc-copy ( x -- x' )
 	dup baku-pointer? 0= if exit then
@@ -270,11 +259,7 @@ variable baku-gc-table-entry
 \ ---------------------------------------------------------------------------
 
 : baku-gc-active? ( -- flag )
-	baku-gc-activated? @ if
-		baku-gc-arena-active? 0=
-	else
-		false
-	then ;
+	baku-gc-activated? @ ;
 
 \ The caller sizes the heap by setting BAKU-GC-SEMISPACE-REQUEST before creation;
 \ the request is read here so tests and embedders share one creation API.  Two
@@ -295,7 +280,6 @@ variable baku-gc-table-entry
 	1 baku-gc-created? ! ;
 
 : baku-gc-activate ( -- )
-	baku-gc-arena-active? if baku-gc-arena-active throw then
 	baku-gc-activated? @ if exit then
 	baku-gc-created? @ 0= if baku-gc-unsupported throw then
 	baku-gc-stack-scan? 0= if baku-gc-unsupported throw then
@@ -326,7 +310,6 @@ variable baku-gc-table-entry
 	baku-gc-flip ;
 
 : baku-gc-collect ( -- )
-	baku-gc-arena-active? if baku-gc-arena-active throw then
 	baku-gc-active? 0= if baku-gc-inactive throw then
 	baku-gc-collecting? @ if exit then
 	1 baku-gc-collecting? !

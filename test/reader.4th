@@ -345,6 +345,33 @@ dupsym @ s" min" baku-intern = assert-true
 
 s" test/fixtures/forms.kl" roundtrip
 
+\ The scratch region is registered separately from the permanent symbol area
+\ and the GC semispace, and its extent ends at the bump pointer: the first
+\ unallocated address must classify as no region at all.
+s" test/fixtures/forms.kl" baku-read-file
+baku-read-form drop
+dup baku-object? assert-true
+dup baku-region-of baku-region-scratch = assert-true
+drop
+baku-scratch-here @ baku-region-of 0= assert-true
+baku-read-close
+
+\ A string literal returned by BAKU-READ-FORM is scratch-resident too.
+s" test/fixtures/strings.kl" baku-read-file
+baku-read-form drop
+dup baku-string? assert-true
+baku-region-of baku-region-scratch = assert-true
+baku-read-close
+
+\ Symbols survive the scratch reset because interning is permanent: the next
+\ read resets the region, but the same spelling yields the same non-GC value.
+variable scratch-sym
+S" scratch-survivor" read-one drop scratch-sym !
+S" (other form)" read-one drop
+scratch-sym @ baku-region-of baku-region-nongc = assert-true
+S" scratch-survivor" read-one drop scratch-sym @ = assert-true
+scratch-sym @ baku-region-of baku-region-nongc = assert-true
+
 \ Strings: an embedded newline and a literal backslash, plus the empty string.
 s" test/fixtures/strings.kl" baku-read-file
 baku-read-form drop

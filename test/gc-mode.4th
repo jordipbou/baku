@@ -1,10 +1,10 @@
 \ GC mode selection and the interpreter-in-GC path.
 \
-\ The execution mode follows the active memory region: an arena selects native
-\ dictionary code, an activated collector selects the interpreter with all code
-\ and data in the from-space, and otherwise non-GC mode compiles native code.
-\ The kernel-visible EVAL-KL is the single dispatcher, so these tests evaluate
-\ through the registered function entry rather than calling a backend directly.
+\ The execution mode follows the active memory region: an activated collector
+\ selects the interpreter with all code and data in the from-space, and
+\ otherwise non-GC mode compiles native code.  The kernel-visible EVAL-KL is the
+\ single dispatcher, so these tests evaluate through the registered function
+\ entry rather than calling a backend directly.
 \
 \ The collector runs on both targets: its stack-scan adapter uses only ANS words.
 \ The test runs the real interpreter under repeated collections on Sloth and
@@ -79,24 +79,12 @@ gcm-value 1 baku-gc-root+
 
 	\ Reference run for the depth-independence checks below: the same
 	\ one-parameter countdown at 2,500 depth goes through the non-GC native
-	\ backend before an arena or collector exists.  The deep GC run must
-	\ reproduce this result, and the existing non-GC parameterised tail checks
+	\ backend before the collector exists.  The deep GC run must reproduce
+	\ this result, and the existing non-GC parameterised tail checks
 	\ (test/eval.4th and test/native.4th) pin the same 2,500-deep case
 	\ independently.
 	gcm-tail-def gcm-eval drop
 	gcm-tail-shallow gcm-eval baku-fixnum-value gcm-nongc-tail !
-
-	\ Arena mode is native too: code is generated and no collection runs.
-	baku-arena-create
-	baku-mode baku-mode-arena = 6 check
-	gcm-report-mode
-	baku-native-code-cells @ gcm-cells !
-	baku-gc-collections @ gcm-old !
-	gcm-add-form gcm-eval baku-fixnum-value 3 = 7 check
-	baku-native-code-cells @ gcm-cells @ > 8 check
-	baku-gc-collections @ gcm-old @ = 9 check
-	baku-arena-free
-	baku-mode baku-mode-nongc = 10 check
 
 	\ GC mode selects the interpreter and generates no dictionary code.
 	131072 baku-gc-semispace-request !
@@ -135,7 +123,7 @@ gcm-value 1 baku-gc-root+
 	gcm-value @ baku-hd baku-fixnum-value 1 = 24 check
 
 	\ A float literal is read into reader scratch.  The front end must copy it
-	\ into the GC heap; otherwise the IR would hold an arena pointer and the
+	\ into the GC heap; otherwise the IR would hold a scratch pointer and the
 	\ collector would leave the float behind.
 	gcm-float-form gcm-eval gcm-value !
 	gcm-value @ baku-float? 25 check

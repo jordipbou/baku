@@ -385,9 +385,10 @@ COVERAGE = {
         "collector are added to gc-mode in P4.",
     ),
     "gc-only-execution#5": (
-        "",
-        "2026-11-18: the reader scratch region is renamed and its survival test is "
-        "added in P3.",
+        "baku_reader_sloth, baku_reader_gforth, baku_gc-mode_gforth",
+        "The reader test proves the scratch region is separate and resets between forms "
+        "while interned symbols survive in the non-GC area; gc-mode proves a literal is "
+        "copied into the GC heap across a forced collection.",
     ),
     "gc-only-execution#6": (
         "",
@@ -563,14 +564,15 @@ COVERAGE = {
         "collection.",
     ),
     "memory-management#3": (
-        "",
-        "2026-11-18: the permanent-symbol survival check lands with the reader scratch "
-        "check in P3.",
+        "baku_reader_sloth, baku_reader_gforth",
+        "The reader test reads a symbol, forces the next read to reset scratch, and "
+        "asserts the symbol is still the same interned value in the non-GC region.",
     ),
     "memory-management#4": (
-        "",
-        "2026-11-18: the reader scratch extent check lands in P3 with the arena "
-        "removal.",
+        "baku_reader_sloth, baku_reader_gforth",
+        "The reader test classifies a returned form and a string literal as scratch and "
+        "asserts the bump-pointer address falls outside every region, proving the extent "
+        "ends at the bump pointer.",
     ),
     "memory-management#5": (
         "baku_gc_gforth",
@@ -757,10 +759,11 @@ COVERAGE = {
         "Tag and header checks run on 64-bit cells; the 32-bit run is deferred.",
     ),
     "value-representation#3": (
-        "baku_values_sloth, baku_values_gforth, baku_gc_gforth",
-        "Region classification is exact for non-GC and GC objects with no false "
-        "positive for aligned non-heap addresses. The scratch case is a dated waiver "
-        "until P3 adds the reader scratch check.",
+        "baku_values_sloth, baku_values_gforth, baku_gc_gforth, baku_reader_sloth, "
+        "baku_reader_gforth",
+        "Region classification is exact for non-GC, scratch and GC objects with no false "
+        "positive for aligned non-heap addresses; the reader test asserts the scratch "
+        "extent ends at its bump pointer.",
     ),
     "value-representation#4": (
         "baku_primitives_sloth, baku_primitives_gforth, baku_kernel_gforth",

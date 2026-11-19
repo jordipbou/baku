@@ -636,10 +636,11 @@ The reader streams one form at a time through a resettable scratch region distin
 the permanent symbol area and the GC heap. Symbols survive the reset, and strings and
 floats are copied into the selected heap before the next read.
 
-Tests: none
+Tests: `baku_reader_sloth`, `baku_reader_gforth`, `baku_gc-mode_gforth`
 
-Evidence: 2026-11-18: the reader scratch region is renamed and its survival test is
-added in P3.
+Evidence: The reader test proves the scratch region is separate and resets between forms
+while interned symbols survive in the non-GC area; gc-mode proves a literal is copied
+into the GC heap across a forced collection.
 
 ### `gc-only-execution#6`
 
@@ -988,20 +989,21 @@ Permanent symbols live in a non-GC area that survives every collection; a symbol
 identity is its permanent address, it is never traced, and interning after collector
 activation remains valid.
 
-Tests: none
+Tests: `baku_reader_sloth`, `baku_reader_gforth`
 
-Evidence: 2026-11-18: the permanent-symbol survival check lands with the reader scratch
-check in P3.
+Evidence: The reader test reads a symbol, forces the next read to reset scratch, and
+asserts the symbol is still the same interned value in the non-GC region.
 
 ### `memory-management#4`
 
 The reader's scratch region is registered separately from the symbol area and the GC
 semispace, and its extent ends at its bump pointer.
 
-Tests: none
+Tests: `baku_reader_sloth`, `baku_reader_gforth`
 
-Evidence: 2026-11-18: the reader scratch extent check lands in P3 with the arena
-removal.
+Evidence: The reader test classifies a returned form and a string literal as scratch and
+asserts the bump-pointer address falls outside every region, proving the extent ends at
+the bump pointer.
 
 ### `memory-management#5`
 
@@ -1361,11 +1363,12 @@ Evidence: Tag and header checks run on 64-bit cells; the 32-bit run is deferred.
 A pointer's region is correctly determined by address range for non-GC, scratch and GC
 objects, with no false positive for an aligned non-heap address.
 
-Tests: `baku_values_sloth`, `baku_values_gforth`, `baku_gc_gforth`
+Tests: `baku_values_sloth`, `baku_values_gforth`, `baku_gc_gforth`, `baku_reader_sloth`,
+`baku_reader_gforth`
 
-Evidence: Region classification is exact for non-GC and GC objects with no false
-positive for aligned non-heap addresses. The scratch case is a dated waiver until P3
-adds the reader scratch check.
+Evidence: Region classification is exact for non-GC, scratch and GC objects with no
+false positive for aligned non-heap addresses; the reader test asserts the scratch
+extent ends at its bump pointer.
 
 ### `value-representation#4`
 

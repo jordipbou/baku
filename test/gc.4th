@@ -3,7 +3,7 @@
 \ The collector runs on both targets: the stack-scan adapter uses only ANS
 \ words (DEPTH and >R/R> on the data stack).  The test covers value tracing,
 \ cycles, shared tails, explicit roots, stack roots, table roots, code/closure
-\ roots, arena coexistence and a garbage stress loop.
+\ roots and a garbage stress loop.
 
 [DEFINED] gforth
 [IF]
@@ -22,10 +22,6 @@ variable gc-closure
 variable gc-cycle
 variable gc-tail-a
 variable gc-tail-b
-variable gc-holder
-variable gc-arena-cons
-variable gc-arena-old
-variable gc-held
 variable gc-old
 variable gc-pre-list
 variable gc-pre-sym
@@ -40,9 +36,6 @@ gc-closure 1 baku-gc-root+
 gc-cycle 1 baku-gc-root+
 gc-tail-a 1 baku-gc-root+
 gc-tail-b 1 baku-gc-root+
-gc-holder 1 baku-gc-root+
-gc-arena-cons 1 baku-gc-root+
-gc-held 1 baku-gc-root+
 gc-pre-list 1 baku-gc-root+
 
 : gc-garbage ( n -- )
@@ -140,50 +133,7 @@ gc-pre-list 1 baku-gc-root+
 	20000 gc-garbage
 	baku-gc-collections @ gc-old @ > 30 check
 	baku-gc-collect
-	baku-gc-used? 4096 < 31 check
-
-	\ An arena may be created while the GC is activated.  The GC becomes
-	\ inactive, refuses to collect or activate, and resumes after the release.
-	\ An arena may hold a GC reference: no collection can move the GC object
-	\ while the arena exists, so the reference stays valid until release.
-	baku-nil baku-nil baku-cons gc-holder !
-	baku-arena-create
-	baku-gc-active? 0= 32 check
-	['] baku-gc-collect catch baku-gc-arena-active = 33 check
-	['] baku-gc-activate catch baku-gc-arena-active = 34 check
-	baku-nil baku-nil baku-cons gc-arena-cons !
-	gc-arena-cons @ baku-region-of baku-region-arena = 35 check
-	gc-holder @ gc-arena-cons @ baku-set-hd
-	gc-arena-cons @ baku-hd gc-holder @ = 36 check
-	gc-arena-cons @ baku-hd baku-region-of baku-region-gc = 37 check
-	\ Grow the arena: the reference must not move because no GC collection ran.
-	baku-nil baku-nil baku-cons drop
-	gc-arena-cons @ baku-hd gc-holder @ = 38 check
-	gc-arena-cons @ gc-arena-old !
-	baku-arena-free
-	baku-gc-active? 39 check
-	\ Releasing the arena invalidates its objects.  The dictionary root that
-	\ held one still holds the released address, which belongs to no region.
-	gc-arena-cons @ baku-object? 0= 40 check
-	baku-gc-collect
-	gc-arena-cons @ gc-arena-old @ = 41 check
-	gc-arena-cons @ baku-object? 0= 42 check
-	gc-holder @ baku-cons? 43 check
-	gc-holder @ baku-hd baku-object? 0= 44 check
-	\ A GC object that points at a released arena object must not be traced:
-	\ the collector copies only addresses inside its from-space.  The checked
-	\ store is deferred, so this deliberately constructs the prohibited state
-	\ to prove the collector leaves released memory alone.
-	3 baku-vector gc-held !
-	baku-arena-create
-	baku-nil baku-nil baku-cons gc-arena-cons !
-	gc-arena-cons @ gc-arena-old !
-	baku-arena-free
-	gc-arena-old @ gc-held @ 0 baku-vector!
-	baku-gc-collect
-	gc-held @ 0 baku-vector@ gc-arena-old @ = 45 check
-	gc-held @ 0 baku-vector@ baku-object? 0= 46 check
-	gc-held @ baku-vector? 47 check ;
+	baku-gc-used? 4096 < 31 check ;
 
 \ Every live data-stack cell is updated and the order is preserved.  This
 \ exercises the multi-cell path of the DEPTH/>R/R> scan, not just one value.

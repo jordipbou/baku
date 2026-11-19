@@ -33,7 +33,7 @@
 \
 \ An IR node built from a reader form is valid only until the next read: the
 \ node itself is allocated in the selected heap, but string and symbol payloads
-\ in the form may point into the reader scratch arena.  The caller must consume
+\ in the form may point into the reader scratch region.  The caller must consume
 \ or copy the node first.  The front end itself is mode-agnostic: the memory mode
 \ selects a backend, not a language.
 
@@ -81,7 +81,7 @@ variable baku-sym-type
 \ Native IR scratch.  The native backend lowers one form at a time and frees
 \ the IR after compiling it; the interpreter keeps IR as closure code and never
 \ selects this block.  It is a fixed dictionary region registered with the
-\ internal arena kind, like the reader scratch.
+\ scratch kind, like the reader scratch region.
 baku-ir-scratch-request @ constant baku-ir-scratch-size
 
 align create baku-ir-scratch baku-ir-scratch-size allot align
@@ -98,7 +98,7 @@ variable baku-ir-scratch-end
 : baku-ir-scratch-init ( -- )
 	baku-ir-scratch baku-ir-scratch-here !
 	baku-ir-scratch baku-ir-scratch-size + baku-ir-scratch-end !
-	baku-ir-scratch baku-ir-scratch-here baku-region-arena baku-region+ drop
+	baku-ir-scratch baku-ir-scratch-here baku-region-scratch baku-region+ drop
 	baku-use-nongc ;
 
 : baku-frontend-init ( -- )
@@ -231,24 +231,24 @@ defer baku-frontend
 : baku-front-nth! ( form i tail node slot -- )
 	>r >r baku-front-nth r> r> baku-vector! ;
 
-\ A string literal read from the reader scratch arena must be copied into the
-\ selected heap before its form is released; the IR outlives the form.  Only an
-\ arena-resident string needs the copy, so a string built directly in the
+\ A string literal read from the reader scratch region must be copied into the
+\ selected heap before its form is released; the IR outlives the form.  Only a
+\ scratch-resident string needs the copy, so a string built directly in the
 \ permanent heap keeps its identity.
 : baku-front-persist-string ( value -- value )
 	dup baku-string? if
-		dup baku-region-of baku-region-arena = if
+		dup baku-region-of baku-region-scratch = if
 			dup baku-string-addr over baku-string-length baku-string nip
 		then
 	then ;
 
 \ A boxed float has the same lifetime hazard as a string literal: the reader
-\ allocates it in scratch, while the IR outlives the form.  Copy an
-\ arena-resident float into the selected heap; a float already in the permanent
+\ allocates it in scratch, while the IR outlives the form.  Copy a
+\ scratch-resident float into the selected heap; a float already in the permanent
 \ or GC heap keeps its identity.
 : baku-front-persist-float ( value -- value )
 	dup baku-float? if
-		dup baku-region-of baku-region-arena = if
+		dup baku-region-of baku-region-scratch = if
 			dup baku-float@ baku-float nip
 		then
 	then ;

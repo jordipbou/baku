@@ -160,7 +160,7 @@ variable baku-native-size-total
 	align
 	dup cells unused u> if baku-out-of-memory throw then
 	dup baku-native-code-cells +!
-	cells baku-dict-reserve ;
+	cells here swap allot ;
 
 \ ---------------------------------------------------------------------------
 \ Emission.  BAKU-NATIVE-EMIT-ADDR is a single forward cursor, so recursive

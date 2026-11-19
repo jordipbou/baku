@@ -61,19 +61,7 @@ CATEGORY_PROBE = "probe"
 # (relative source file, enclosing colon definition).  The value is
 # (expected store count, category, reason).  Editing this table is the review.
 REVIEWED = {
-    # Arena bookkeeping arrays live in dictionary space and hold arena-local
-    # addresses, never GC references.
-    ("4th/arena.4th", "BAKU-ARENA-CREATE"):
-        (8, CATEGORY_DICTIONARY, "arena stack arrays are dictionary memory"),
-    ("4th/arena.4th", "BAKU-ARENA-FREE"):
-        (1, CATEGORY_DICTIONARY, "restores the saved arena base"),
-    ("4th/arena.4th", "BAKU-ARENA-DICT-RESERVE"):
-        (1, CATEGORY_DICTIONARY, "advances the arena's dictionary here cell"),
-
-    # Evaluator tables are dictionary arrays; snapshots hold arena addresses in
-    # a dictionary slot so a release can restore them.
-    ("4th/eval.4th", "BAKU-ARENA-SNAPSHOT"):
-        (1, CATEGORY_DICTIONARY, "snapshot address slot is dictionary memory"),
+    # Evaluator tables are dictionary arrays.
     ("4th/eval.4th", "BAKU-CLOSURE!"):
         (1, CATEGORY_VALUE_WRITER,
          "single closure payload writer; callers keep values same-region"),

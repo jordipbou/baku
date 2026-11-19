@@ -60,8 +60,6 @@
 -266 constant baku-vector-bounds-error
 -267 constant baku-invalid-argument
 -268 constant baku-error-expected
--269 constant baku-arena-full
--270 constant baku-no-arena
 
 \ The required-wordset startup probe (4th/probe.4th) checks the Floating
 \ wordset before this file loads, so DF@/DF! are available here.
@@ -71,7 +69,7 @@
 \ ---------------------------------------------------------------------------
 
 1 constant baku-region-nongc
-2 constant baku-region-arena
+2 constant baku-region-scratch
 3 constant baku-region-gc
 
 16 constant baku-region-max
@@ -118,13 +116,6 @@ variable baku-new-kind
 		then
 	loop
 	drop 0 ;
-
-\ Regions are registered in lifetime order, so releasing the youngest one
-\ (an arena) is always a pop.  The end cell is not touched: it belongs to the
-\ released region and is no longer read.
-: baku-region-drop ( -- )
-	baku-region-count @ 0= if baku-invalid-argument throw then
-	baku-region-count @ 1- baku-region-count ! ;
 
 \ The GC flips between two semispaces, so its extent moves without changing the
 \ number of regions.  These accessors keep the array layout private to this
@@ -243,25 +234,9 @@ variable baku-heap-end
 variable baku-alloc-payload
 variable baku-alloc-type
 
-\ A dictionary arena must keep the Forth data-space pointer in step with its own
-\ bump pointer, because nested arenas and every other word definition use HERE.
-\ The arena layer binds this hook; without it the hook is a no-op.
-defer baku-alloc-sync
-: baku-alloc-sync-none ;
-' baku-alloc-sync-none is baku-alloc-sync
-
-\ Raw dictionary reservations (native code blocks and table snapshots) move
-\ HERE without allocating a Baku object, so the bump-heap hook above never sees
-\ them.  The arena layer binds this second hook to advance its own bump pointer
-\ by the same amount; without it the next arena allocation would rewind HERE
-\ over the generated code or snapshot.
-defer baku-dict-reserve
-: baku-dict-reserve-default ( bytes -- addr ) here swap allot ;
-' baku-dict-reserve-default is baku-dict-reserve
-
 \ Called when the selected heap cannot satisfy a request.  The GC binds this to
-\ collect and retry when the selected heap is its from-space; a non-GC or arena
-\ heap keeps the default and raises the catchable out-of-memory code.
+\ collect and retry when the selected heap is its from-space; a non-GC heap
+\ keeps the default and raises the catchable out-of-memory code.
 defer baku-alloc-full
 : baku-alloc-full-default ( -- ) baku-out-of-memory throw ;
 ' baku-alloc-full-default is baku-alloc-full
@@ -284,7 +259,6 @@ defer baku-alloc-full
 	drop
 	baku-alloc-payload @ 8 lshift baku-alloc-type @ or ( header )
 	r@ !                                           ( -- | R: old )
-	baku-alloc-sync
 	r> ;                                           ( -- obj )
 
 : baku-object-total ( obj -- bytes )
@@ -410,8 +384,8 @@ variable baku-quote-src
 \ Error objects
 \
 \ The message bytes are copied into the object instead of referencing a string
-\ value.  An error can then be raised from any region, including an arena, and
-\ never holds a cross-region reference: the GC only ever sees inline bytes.
+\ value.  An error can then be raised from any region and never holds a
+\ cross-region reference: the GC only ever sees inline bytes.
 \ ---------------------------------------------------------------------------
 
 variable baku-error-src

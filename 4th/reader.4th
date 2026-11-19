@@ -5,8 +5,8 @@
 \ is not reimplemented here.
 \
 \ The reader is streaming at the form level: BAKU-READ-FORM returns one
-\ top-level form and allocates its tree in a scratch arena.  The next call
-\ resets that arena, so a form is valid only until the next read.  Symbols are
+\ top-level form and allocates its tree in a scratch region.  The next call
+\ resets that region, so a form is valid only until the next read.  Symbols are
 \ interned in the permanent non-GC heap and survive the reset.  This is what
 \ keeps the peak memory at the largest single form instead of the whole corpus.
 \
@@ -580,7 +580,7 @@ variable baku-read-all-xt
 : baku-reader-init ( -- )
 	baku-reader-scratch baku-scratch-here !
 	baku-reader-scratch baku-reader-scratch-size + baku-scratch-end !
-	baku-reader-scratch baku-scratch-here baku-region-arena baku-region+ drop
+	baku-reader-scratch baku-scratch-here baku-region-scratch baku-region+ drop
 	0 baku-src-open !
 	0 baku-src-kind !
 	0 baku-src-has-peek !
