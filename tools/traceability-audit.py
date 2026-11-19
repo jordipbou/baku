@@ -296,10 +296,10 @@ COVERAGE = {
     ),
     "documentation#2": (
         "baku_spec_traceability",
-        "The audit checks the purpose statement and the architecture, memory, "
-        "execution, I/O, testing and licensing sections. The single-execution-path "
-        "wording is a dated waiver until P5 rewrites the README and README_HEADINGS "
-        "together.",
+        "The audit checks the purpose statement and the architecture, values, "
+        "memory, execution, primitives/errors, testing and licensing sections, and "
+        "requires the single-lifetime and single-executor wording that replaced "
+        "the three-mode text.",
     ),
     "documentation#3": (
         "baku_spec_traceability",
@@ -322,14 +322,18 @@ COVERAGE = {
         "the generated documents instead of copying them.",
     ),
     "documentation#7": (
-        "",
-        "2026-11-18: the README and generated traceability document are rewritten to "
-        "the single collector lifetime and single interpreter executor in P5.",
+        "baku_spec_traceability",
+        "The README and generated-document check requires the one-collector-"
+        "lifetime, only-executor, permanent-symbol-area and scratch-region wording, "
+        "and rejects stale execution-mode section names, deleted backend filenames "
+        "and the three-mode text; its self-test proves each failure is reported.",
     ),
     "documentation#8": (
         "",
-        "2026-11-18: the measurement table, exact verification commands and proposed "
-        "replacement entry text are the final-report deliverable in P5.",
+        "2026-11-19: the measurement table, exact verification commands and proposed "
+        "replacement entry text are the final-report deliverable in P5; the report "
+        "is produced outside the repository and is not a CTest, so this remains a "
+        "process waiver.",
     ),
 
     # forth-portability.md
@@ -415,8 +419,9 @@ COVERAGE = {
         "baku_region_audit, baku_region_audit_selftest, baku_spec_traceability",
         "The region audit fails when shipped 4th/, test/ or CMakeLists.txt names the "
         "removed arena subsystem, native backend, mode selector or IR scratch; its "
-        "self-test injects baku-mode and requires failure.  The README and generated "
-        "document half of the criterion is extended by the documentation check in P5.",
+        "self-test injects baku-mode and requires failure.  The documentation check "
+        "in baku_spec_traceability rejects the same stale names and the execution-"
+        "modes section in README.md and the generated document.",
     ),
     "gc-only-execution#9": (
         "baku_boot_sloth, baku_boot_gforth, baku_gc-boot_gforth",
@@ -813,13 +818,20 @@ it cannot run in this environment. `baku_spec_traceability` fails when a
 criterion loses its row, a claimed test is not registered, a waiver loses its
 date, or this document drifts from the specs.
 
+The GC-only target has one collector lifetime and one interpreter executor. In the
+booted path, non-GC memory is confined to the permanent symbol area and the
+resettable reader scratch region; there is no current arena or native backend and
+no general non-GC execution mode. Contract statements 8, 9, 11, 14 and 15 are
+superseded by this target, and statements 16 and 19 are deferred with the native
+compiler; `contract.md` `Target status` records the replacement entry text.
+
 """
 
 README_HEADINGS = (
     "## Architecture",
     "## Values",
     "## Memory",
-    "## Execution modes",
+    "## Execution model",
     "## Primitives, errors and I/O",
     "## Testing",
     "## Licensing and kernel provenance",
@@ -853,6 +865,73 @@ STATUS_PATTERNS = (
     (re.compile(r"full Debug gate (?:was|is)\b", re.IGNORECASE),
      "gate outcome"),
 )
+
+# documentation#7: the README and the generated document must describe the
+# GC-only target, not the superseded three-mode design.  These are the phrases
+# that make the single collector lifetime and single interpreter executor
+# machine-checked instead of prose.
+LIFETIME_REQUIRED = (
+    "one collector lifetime",
+    "only executor",
+    "permanent symbol area",
+    "scratch region",
+)
+
+# README removal prose may still name the rejected alternatives, so the README
+# rejects concrete deleted names and section titles, not the words "arena" or
+# "native" on their own.  Rejected-alternative bullets are explicit prose.
+README_REMOVED = (
+    "execution modes",
+    "arena.4th",
+    "native.4th",
+    "768m",
+    "640 mib",
+    "512 mib",
+    "three lifetimes",
+    "three modes",
+    "mode matrix",
+    "mode-matrix",
+    "mode-differential",
+    "arena-native",
+    "baku-mode",
+    "baku-native",
+    "baku-arena",
+    "baku-ir-scratch",
+    "baku-dict-reserve",
+    "baku-alloc-sync",
+    "baku-closure-native",
+    "threaded-code compiler",
+    "the pre-load heap",
+)
+
+# The generated document quotes the spec criteria, so it may legitimately
+# contain the removed-name list from gc-only-execution#8 and the old 512/768
+# numbers from startup-memory#2.  Only names that no criterion contains are
+# rejected there: a deleted file or test title would be stale generated prose.
+DOCUMENT_REMOVED = (
+    "execution modes",
+    "arena.4th",
+    "native.4th",
+    "mode matrix",
+    "mode-matrix",
+    "mode-differential",
+    "arena-native",
+)
+
+
+def check_language(path, label, required, removed, violations):
+    if not path.is_file():
+        violations.append((label, "missing file for the documentation check"))
+        return
+    text = normalize(path.read_text(encoding="utf-8")).lower()
+    for phrase in required:
+        if phrase not in text:
+            violations.append(
+                (label, f"missing single-lifetime wording {phrase!r}"))
+    for token in removed:
+        if token in text:
+            violations.append(
+                (label, f"stale removed-subsystem wording {token!r}"))
 
 
 def normalize(text):
@@ -1096,6 +1175,8 @@ def check_readme(root, violations):
                     ("README.md",
                      f"design choice states no requirement or choice: "
                      f"{decision[:60]!r}"))
+    check_language(path, "README.md", LIFETIME_REQUIRED, README_REMOVED,
+                   violations)
 
 
 def check_runner(root, violations):
@@ -1265,6 +1346,8 @@ def audit(root, specs, tests_file, agents, coverage, write=False,
             violations.append(
                 (str(specs), "cannot --write without the spec tree"))
         check_document_only(output, coverage, violations)
+    check_language(output, "docs/spec-traceability.md", LIFETIME_REQUIRED,
+                   DOCUMENT_REMOVED, violations)
 
     check_readme(root, violations)
     check_runner(root, violations)
@@ -1327,7 +1410,10 @@ not add requirements. The traceability map is in `docs/spec-traceability.md`.
 
 ## Memory
 
-## Execution modes
+Baku has one collector lifetime with a permanent symbol area and a resettable
+scratch region. The interpreter is the only executor.
+
+## Execution model
 
 ## Primitives, errors and I/O
 
@@ -1528,6 +1614,33 @@ def self_test():
         check_readme(root, violations)
         report("missing rejected alternative", violations,
                "no rejected alternative")
+
+        (root / "README.md").write_text(
+            SELF_README.replace(
+                "The interpreter is the only executor.\n", ""),
+            encoding="utf-8")
+        violations = []
+        check_readme(root, violations)
+        report("missing single-executor wording", violations,
+               "missing single-lifetime wording")
+
+        (root / "README.md").write_text(
+            SELF_README + "\n## Execution modes\n", encoding="utf-8")
+        violations = []
+        check_readme(root, violations)
+        report("stale execution-modes wording", violations,
+               "stale removed-subsystem wording")
+
+        doc = base / "docs" / "fixture.md"
+        doc.write_text(
+            "One collector lifetime; the interpreter is the only executor; a "
+            "permanent symbol area and a scratch region; native.4th\n",
+            encoding="utf-8")
+        violations = []
+        check_language(doc, "docs/spec-traceability.md", LIFETIME_REQUIRED,
+                       DOCUMENT_REMOVED, violations)
+        report("stale generated-document wording", violations,
+               "stale removed-subsystem wording")
 
         agents = base / "AGENTS.md"
         agents.write_text(

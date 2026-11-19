@@ -21,7 +21,7 @@ The generated primitive-to-ANS mapping is in
 - [Architecture](#architecture)
 - [Values](#values)
 - [Memory](#memory)
-- [Execution modes](#execution-modes)
+- [Execution model](#execution-model)
 - [Reading and booting the kernel](#reading-and-booting-the-kernel)
 - [Primitives, errors and I/O](#primitives-errors-and-io)
 - [Testing](#testing)
@@ -57,7 +57,8 @@ gforth -m 64M -d 16M -r 16M -e 's" 4th/start.4th" INCLUDED'
 defaults in `4th/portability.4th`, loads `4th/baku.4th`, creates and activates
 the Cheney collector, reads the 23 vendored KLambda files, runs
 `shen.initialise` then `stlib.initialise`, prints `BAKU-STARTED`, and enters
-`baku-repl`. It takes about two minutes on gforth.
+`baku-repl`. The default boot takes about two minutes on gforth (measured 108 s
+and about 47 MiB peak RSS with gforth 0.7.9 and these flags).
 
 The dictionary flags are a target requirement, not a build step. Why the entry
 file exists instead of one word inside `4th/baku.4th`: the symbol-area and
@@ -99,12 +100,13 @@ tree to change them. The kernel suite overrides them with a 64 MiB symbol area
 and a 256 MiB semispace because it creates gensyms and loads programs.
 
 On Sloth the same session works from the repository root; start Sloth with a
-dictionary large enough for the heap. The `[DEFINED] gforth` switch at the top of
+dictionary large enough for the shipped Forth, the permanent symbol area and the
+reader scratch region. The `[DEFINED] gforth` switch at the top of
 `4th/baku.4th`, `4th/start.4th` and every test file is the only per-target
-*file-inclusion* difference: gforth resolves a nested `INCLUDED` relative to the
-including file, Sloth relative to the working directory. It changes no
-semantics; the other target difference is the `[DEFINED]`-gated stack-root
-adapter in `4th/gc-stack.4th`.
+difference: gforth resolves a nested `INCLUDED` relative to the including file,
+Sloth relative to the working directory. It changes no semantics. The data-stack
+root adapter in `4th/gc-stack.4th` uses only ANS words, so the collector runs on
+every target without a gated branch.
 
 To run the whole test gate:
 
@@ -123,26 +125,24 @@ consume the earlier representation.
 
 | File | Responsibility |
 |---|---|
-| `4th/portability.4th` | ANS fallbacks for `CELL`, `-ROT`, `<=`, `>=`; the pre-load heap and scratch request cells |
+| `4th/portability.4th` | ANS fallbacks for `CELL`, `-ROT`, `<=`, `>=`; the guarded symbol-area and semispace request cells |
 | `4th/probe.4th` | Startup probe for the required ANS Forth 2012 wordsets |
 | `4th/value.4th` | Tagged values, region map, uniform object headers, constructors and accessors |
 | `4th/gc.4th` | Cheney copying collector, roots and activation rules |
 | `4th/gc-stack.4th` | Data-stack root adapter; portable `DEPTH`/`>R`/`R>` scan |
-| `4th/arena.4th` | LIFO dictionary arenas released with `MARKER` |
-| `4th/reader.4th` | Streaming KLambda text reader |
+| `4th/reader.4th` | Streaming KLambda text reader and reader scratch region |
 | `4th/frontend.4th` | Form validation, vector IR and shared tail-position analysis |
-| `4th/eval.4th` | Tree-walking interpreter, the correctness reference |
-| `4th/native.4th` | Dictionary threaded-code compiler for non-GC and arena modes |
+| `4th/eval.4th` | Tree-walking interpreter, the only executor |
 | `4th/primitives.4th` | KLambda host primitives on ANS Forth words |
 | `4th/compat.4th` | `input+`, installed as an interpreted KLambda definition |
 | `4th/boot.4th` | Kernel load manifest, host globals and the two initialisers |
 | `4th/repl.4th` | Top level: standard input, expression mode and file mode |
-| `4th/start.4th` | One-line user entry: heap request, native installer, kernel boot and REPL |
+| `4th/start.4th` | One-line user entry: collector boot, kernel load and REPL |
 
-The reader produces forms; the front end lowers a form into a mode-independent
-IR; both executors consume that IR. The interpreter is not a fallback that can
-drift: it is the reference the compiler must match, and the mode matrix compares
-them.
+The reader produces forms; the front end lowers a form into vector IR; the
+interpreter is its only consumer. The front end and the IR are retained as the
+base for a future compiler, but no compiler exists today and no second executor
+can drift from the interpreter.
 
 ## Values
 
@@ -175,83 +175,82 @@ Double-Number wordset for range checks.
 
 ## Memory
 
-Baku has three lifetimes, longest to shortest. The implementation plan records
-the reasoning in more detail.
+Baku has one collector lifetime, a small permanent block for interned symbols,
+and a resettable reader scratch region. Nothing else is non-GC after boot.
 
-**Non-GC.** A Forth dictionary block created during bootstrap. It holds native
-code, constants and permanent symbols. It is never collected. Its size is the
-`baku-nongc-request` cell, set before the tree is included; the default 512 KiB
-covers the symbol table and constants, and a boot raises it.
+**Permanent symbol area.** A Forth dictionary block sized by the
+`baku-nongc-request` cell, set before the tree is included. The default is 2 MiB,
+which holds the roughly 230 KiB of symbols interned by a full boot with
+headroom. A symbol's identity is its permanent address: it is never traced and
+never moved, and interning after the collector is activated is the documented
+exception to "no non-GC allocation after bootstrap". The same block holds
+constants created during bootstrap. It holds no compiled code and no
+interpreter IR.
 
-**Arenas.** LIFO scopes over the dictionary. Creating an arena defines an ANS
-`MARKER` at the current dictionary point and selects a bump heap that advances
-`HERE`; freeing the arena executes the marker. There is no collection latency and
-no preallocated size. An arena's registered extent ends at its bump pointer, not
-at the dictionary limit, so a nested arena does not overlap the outer one and
-unallocated space never classifies as an object. The function and global bucket
-arrays are snapshotted into the arena and restored before the marker runs, and a
-global definition made while an arena is active prepends rather than mutating a
-pre-arena binding.
+**Reader scratch.** `4th/reader.4th` registers a 2 MiB block as the
+`baku-region-scratch` region. The next read resets it, so a form is valid only
+until that next read; its registered extent ends at the bump pointer, so
+unallocated space never classifies as an object. Symbols survive the reset
+because they live in the permanent area; the front end copies a scratch-resident
+string or float into the selected heap before the form is consumed.
 
-**Cheney GC.** Two semispaces in their own allocated block. When active, the
-selected Baku heap is the from-space, so every constructor allocates there
-without a second allocator. A collection copies reachable objects with Cheney's
-scan, then swaps the semispaces. Forwarding is stored in the old header with the
-cell sign bit set; a real header cannot set that bit. The region map is updated
-on each flip.
-
-Activation rules follow the entry: the GC is active only when it has been
-activated and no arena is active. Activating the GC while an arena exists, or
-collecting while one exists, is refused with a catchable error. A freed arena
-restores the GC heap and collection resumes.
+**Cheney GC.** Two semispaces allocated from the host heap, each sized by the
+`baku-gc-semispace-request` cell read when `baku-gc-create` runs. The default is
+16 MiB per semispace, so the whole reservation is 2 x 16 MiB plus the 2 MiB
+symbol area, 34 MiB. When the collector is active the selected Baku heap is the
+from-space, so every constructor allocates there without a second allocator. A
+collection copies reachable objects with Cheney's scan and then swaps the
+semispaces. Forwarding is stored in the old header with the cell sign bit set; a
+real header cannot set that bit. The region map is updated on each flip. The
+collector is active once it has been created and activated; there is no other
+lifetime state to consult.
 
 Roots are the only non-GC memory allowed to hold GC references. They are
 registered dictionary cells and ranges, the function and global tables (whose
-chains may live in non-GC memory), and the Forth data stack. ANS Forth 2012
-exposes no stack pointer, so `4th/gc-stack.4th` walks the live data stack with
-`DEPTH` and `>R`/`R>`, which are ANS words. The return stack is not a root: GC
-mode keeps no GC reference on it when an allocation can run, so the collector
-never needs to reach it. The adapter therefore works on every ANS target and
-GC activation no longer has an unsupported branch.
+bucket chains may live in non-GC memory and still hold GC values), the shared
+tail-call cells and the Forth data stack. ANS Forth 2012 exposes no stack
+pointer, so `4th/gc-stack.4th` walks the live data stack with `DEPTH` and
+`>R`/`R>`, which are ANS words. The return stack is not a root: the interpreter
+keeps no GC reference on it when an allocation can run, so the collector never
+needs to reach it. The adapter therefore works on every ANS target.
 
-Arenas may hold GC references because every arena is freed before the GC moves
-or compacts; the GC must not hold references to arena objects. The checked store
-is deferred by the project entry, so a violation is a bug rather than a catchable
-error. The compiler and runtime avoid raw cross-region stores outside the roots.
+The checked store remains deferred by the project entry, so a cross-region
+violation is a bug rather than a catchable error. `tools/region-audit.py`
+reviews every raw computed-address store in the shipped graph, which makes the
+rule executable without a tag or a store barrier.
 
-## Execution modes
+## Execution model
 
-The memory state selects the backend; a user selects a lifetime policy, not a
-language. `baku-mode` in `4th/eval.4th` returns arena, GC or non-GC, and the
-kernel-visible `eval-kl` dispatches on it.
+There is one execution path. The kernel-visible `eval-kl` receives a form, the
+front end lowers it into vector IR, and the tree-walking interpreter in
+`4th/eval.4th` evaluates that IR with environments captured by closures. Code,
+closures and environments live in the selected heap and are traced by the
+collector. There is no second backend and no lifetime policy to select.
 
-- **Non-GC** (no GC, no arena): compile KLambda to dictionary threaded code with
-  `4th/native.4th`. A code block is `[arity, parameter-symbols..., instructions...,
-  RET]`; parameter cells are permanent interned symbols, so dictionary code holds
-  no arena or GC reference. Applying a native closure binds the parameters and
-  executes the block. Self-tail calls jump back to the block start (`BEGIN ...
-  AGAIN`); other tail calls use the shared trampoline.
-- **Arena** (arena active, GC on or off): the same native compiler. Raw dictionary
-  reservations go through `baku-dict-reserve`, so generated code advances the
-  active arena and the `MARKER` reclaims it.
-- **GC** (GC active, no arena): the interpreter in `4th/eval.4th` is the executor.
-  Code and closures live in the heap and are traced by the collector. The native
-  entry refuses GC mode with the catchable `baku-mode-error` rather than writing
-  unreclaimable dictionary code.
+A closure carries `[kind, arity, code, environment]`. An interpreted closure's
+`code` is its lambda, defun or freeze IR node; a primitive closure's `code` is a
+Forth execution token; a partial closure's `code` is the target closure and its
+environment holds the arguments saved so far. `baku-apply` resolves currying
+before dispatch, so interpreted closures, host primitives and the trampoline
+share one application path. Applying a non-callable value or supplying too many
+arguments raises the catchable `baku-eval-not-callable` and `baku-eval-arity`
+errors.
 
-Tail-position analysis lives once in `4th/frontend.4th`, so every mode uses the
-same tail flags. The interpreter's trampoline is its self-tail loop as well: a
-tail call stores the closure and arguments in the shared tail cells and returns
-`baku-tail-pending`; the nearest trampoline applies the request in a loop. The
-observable result is constant return-stack space for self and mutual tail calls.
-Native TCO on a particular Forth is optional and not implemented; the self-tail
-loop plus the trampoline already provide that property portably.
+Tail-position analysis lives once in `4th/frontend.4th`. The interpreter's
+trampoline is its self-tail loop as well: a tail call stores the closure and
+arguments in the shared tail cells and returns `baku-tail-pending`; the nearest
+trampoline applies the request in a loop. The observable result is constant
+return-stack space for self and mutual tail calls.
+
+The front end and the IR remain the base for a future compiler: a compiler would
+consume the same nodes and the same tail flags. Native compilation is deferred,
+not a current path, and no native code is emitted today.
 
 ## Reading and booting the kernel
 
 `4th/reader.4th` is a streaming reader for KLambda text. It returns one top-level
-form at a time in a resettable 2 MiB scratch arena; the next read resets it, so a
-form is valid only until that next read. This keeps peak memory at the largest
+form at a time in the resettable 2 MiB scratch region; the next read resets it, so
+a form is valid only until that next read. This keeps peak memory at the largest
 single form (about 1.1 MiB in the pinned corpus) instead of the whole tree.
 Symbols are interned permanently and survive the reset. Strings are literal:
 `"` terminates, a backslash is data, embedded newlines are data, and no
@@ -259,13 +258,13 @@ Forth/JSON escape is decoded. Comments are Shen's `\\` line comment and
 `\* ... *\` block comment; `;` and `#` are symbol characters.
 
 `4th/boot.4th` holds the boot manifest: the 23 vendored `.kl` files, the host
-globals and the initialisation order. Each form is streamed through the deferred
-`baku-install-form`. The default installer is the interpreter, which keeps every
-definition's IR in the non-GC heap and is the reference path. A native backend
-overrides the deferred word before calling `baku-boot-load-kernel`; the native
-installer compiles each form and discards the IR, which is why the supported
-non-GC boot keeps much less IR and why `test/boot.4th` measures 6.8 MiB with the
-interpreter loader.
+globals and the initialisation order. Each form is streamed through
+`baku-install-form`, which is a direct definition over `baku-eval-kl`: the
+interpreter lowers and evaluates the form, and every definition's IR is kept in
+the selected GC heap. Because a reader form lives in the resettable scratch
+region, the loader consumes each form before the next read. The collector must
+be created and activated before `baku-boot-load-kernel`, or the IR has no heap
+to live in.
 
 The pinned corpus yields 1124 top-level forms: 1118 `defun` forms and 6
 copyright strings, with 1117 distinct names because `min` is defined twice. The
@@ -333,47 +332,51 @@ prints one PASS/FAIL/NOT RUN line per target plus the host checks.
 
 The layers and their tests:
 
-- values, primitives, vectors, symbols, errors and I/O: direct calls and calls
+- `test/smoke.4th`, `test/values.4th`, `test/primitives.4th`, `test/io.4th`: the
+  value representation, vectors, symbols, errors and I/O, by direct calls and
   through `baku-eval-kl`;
 - `test/reader.4th`: the real 23-file corpus, form and definition counts, the
-  string traps and reader errors;
-- `test/frontend.4th`, `test/eval.4th`, `test/native.4th`: IR shape and tail
-  positions, special forms, currying, globals, tail calls, native codegen,
-  installer and error paths;
-- `test/gc.4th`, `test/arena.4th`, `test/arena-native.4th`: region classification,
-  release, roots, cycles, cross-region rules and native code in arenas;
-- `test/gc-mode.4th`, `test/mode-differential.4th`, `test/mode-matrix.4th`: the
-  same program through the interpreter, native non-GC, arena and GC paths, with
-  structural equality, formatted bytes and error classes compared;
+  string traps, reader errors and the scratch region's exclusive extent;
+- `test/frontend.4th`, `test/eval.4th`: IR shape and tail positions, special
+  forms, currying, globals, tail calls and error paths;
+- `test/gc.4th`: region classification, roots, cycles, shared tails, strings,
+  vectors and closures before and after a forced collection;
+- `test/gc-mode.4th`: the collector-active execution path, including currying,
+  `trap-error`, non-callable and over-applied errors, and 100,000-deep self and
+  mutual tail chains on both targets;
+- `test/gc-boot.4th`: the full user boot under the shipped defaults, followed by a
+  forced collection that must preserve the boot state;
 - `test/conformance.4th`, `test/differential.4th`,
   `test/differential-targets.cmake`: a fixed program set on both targets with
   byte-identical output (marked lines for the differential, everything through
   `BAKU-TEST-DONE` for the conformance fixture);
-- `test/boot.4th`, `test/boot-native.4th`, `test/repl.4th`, `test/repl-eof.4th`,
-  `test/kernel.4th`: the load manifest, both initialisers, the top level and
-  kernel-defined behaviour after boot.
+- `test/boot.4th`, `test/repl.4th`, `test/repl-eof.4th`, `test/kernel.4th`: the
+  load manifest, both initialisers, the top level and kernel-defined behaviour
+  after boot.
 
 `docs/spec-traceability.md` maps every specification acceptance criterion and
 every contract entry statement to a registered test or a dated waiver.
 `tools/traceability-audit.py --check` is the gate: it fails on an orphan
 criterion, a stale row, an unknown test name or a stale document, and it also
-executes the documentation criteria (README sections, rejected alternatives,
-runner markers and no status prose in `.ralph/AGENTS.md`). Regenerate the
-document with `--write` after changing a spec or the coverage table.
+executes the documentation criteria (README sections, the single-lifetime and
+single-executor wording, rejected alternatives, runner markers and no status
+prose in `.ralph/AGENTS.md`). Regenerate the document with `--write` after
+changing a spec or the coverage table.
 
 The official Shen 43.2 suite is vendored under `vendor/shen-43.2/tests` and run
 by `test/kernel-suite.4th`. It is Shen source for a booted top level: the test
-boots under the Cheney collector with a 256 MiB semispace, loads `harness.shen`
-then `kerneltests.shen`, supplies `y` lines for a failed-check prompt, and gates
-on the package-scoped counters. It is labelled `long` and excluded from the
-default target loops.
+boots under the Cheney collector with a 64 MiB symbol area and a 256 MiB
+semispace, loads `harness.shen` then `kerneltests.shen`, supplies `y` lines for a
+failed-check prompt, and gates on the package-scoped counters. It is labelled
+`long` and excluded from the default target loops.
 
-The native non-GC boot keeps every allocation, so `test/boot-native.4th`,
-`test/kernel.4th` and `test/repl.4th` request a 512 MiB non-GC heap, a 4 MiB IR
-scratch and a 2 MiB reader scratch. They are gforth-only because Sloth's Debug
-native execution is too slow for the gate; the exclusion is explicit in
-`CMakeLists.txt`, not a silent skip. The collector tests run on both targets;
-the stack-scan adapter uses only ANS words, so Sloth exercises the real GC path.
+`test/gc-boot.4th`, `test/kernel.4th`, `test/repl.4th` and `test/kernel-suite.4th`
+are gforth-only because Sloth's Debug execution of a full boot is far too slow
+for the fast gate. The exclusion is explicit, per test and with a reason, in
+`CMakeLists.txt`, not a silent skip. `test/boot.4th` stays registered on both
+targets and provides the Sloth evidence that the collector is created and
+activated before the kernel loads. The collector tests run on both targets; the
+stack-scan adapter uses only ANS words, so Sloth exercises the real GC path.
 
 ## Tooling
 
@@ -386,8 +389,10 @@ cmake --build build --config Debug --target sloth
 ctest --test-dir build -C Debug -LE long -R '^baku_' --output-on-failure
 ```
 
-CMake fetches the pinned Sloth revision and builds a 640 MiB-dictionary test
-platform with 16384-cell data and return stacks. It also requires gforth and
+CMake fetches the pinned Sloth revision and builds a 64 MiB-dictionary test
+platform with 16384-cell data and return stacks: the shipped Forth, the 2 MiB
+permanent symbol area and the 2 MiB reader scratch fit with headroom, and the
+semispaces come from the host heap. It also requires gforth and
 python3 at configure time: gforth is a required acceptance target, and python3
 runs the ANS audit and the primitive manifest. Their absence is a loud configure
 failure, never a silent skip. `build/baku-targets.txt` is generated at configure
@@ -397,7 +402,7 @@ Host-side checks that do not need a Forth target:
 
 ```sh
 ctest --test-dir build -C Debug -R '^baku_(kernel_digest|tests_digest|release_asset)' --output-on-failure
-ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|provenance_audit|link_audit|primitive_manifest)' --output-on-failure
+ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|provenance_audit|link_audit|primitive_manifest|spec_traceability)' --output-on-failure
 ```
 
 `tools/ans-audit.py` follows `4th/baku.4th` and maps every external word to its
@@ -485,32 +490,36 @@ self-tests, so a broken verifier cannot look green.
   Rejected: a separate tag word or a side table for object kinds, which costs
   memory and breaks the collector's ability to size an arbitrary object.
 - **Region by address.** Requirement: no separate region tag. Choice: an ordered
-  region map, exact `[start, end)` bounds and a pop on release. Rejected: a region
-  tag in the value or header, which would have to be maintained on every store and
-  copied object.
-- **Three lifetimes instead of one collector.** Requirement: non-GC native code,
-  `MARKER`-released arenas and a Cheney GC. Choice: keep the three mechanisms and
-  select the executor from the active memory state. Rejected: collecting
-  everything with one GC, which would make native code and deterministic
-  temporary scopes pay collection latency; rejected: one lifetime, which cannot
-  meet both no-latency reclaim and a bounded dynamic heap.
+  region map with exact `[start, end)` bounds; a growing region's registered end
+  is the address of its bump pointer, and resetting the reader scratch moves that
+  pointer back. Rejected: a region tag in the value or header, which would have to
+  be maintained on every store and copied object.
+- **One collector lifetime, with a permanent symbol area.** Requirement: a bounded
+  dynamic heap and symbol identity that outlives every form. Choice: one Cheney
+  collector owns all heap values, plus a small permanent non-GC block for interned
+  symbols and constants and a resettable reader scratch region. Rejected:
+  retaining arenas and native non-GC code, which duplicated the executor and kept a
+  large dictionary reservation; rejected: GC-allocated symbols, which would make
+  symbol identity depend on collection.
 - **Deferred checked store.** Requirement: no cross-region references outside the
   roots; the checked store is explicitly deferred. Choice: rely on the allocator
   and constructor APIs plus tests, and review every raw address store with
   `tools/region-audit.py` so an unreviewed one fails the gate. Rejected: a tagged
   store on every write, which the entry does not require and which would slow
   every mutation while adding an error path the kernel does not expect.
-- **Dictionary threaded code, not C or bytecode.** Requirement: ANS Forth only,
-  no host-language runtime. Choice: emit dictionary cells with an explicit opcode
-  and a small inner interpreter; the parameter cells are permanent symbols.
-  Rejected: C code generation (violates the Forth-only rule) and a heap bytecode
-  VM for non-GC mode (cannot use `MARKER` reclaim and adds a fourth
-  representation).
-- **The interpreter is the reference.** Choice: every mode consumes the same IR
-  and must produce the same value, printed bytes and error class; the matrix test
-  compares them. Rejected: trusting the compiler as both implementation and
-  oracle, which would hide a shared lowering bug.
-- **Streaming reader.** Choice: one form at a time in a resettable scratch arena,
+- **Interpreter now, native compilation deferred.** Requirement: ANS Forth only,
+  no host-language runtime. Choice: lower every form to vector IR and evaluate it
+  with the tree-walking interpreter; the front end, IR and tail flags are retained
+  so a future Forth-native compiler can consume the same representation. Rejected:
+  keeping a second native backend as a current execution path, which duplicated the
+  executor and could drift from it; rejected: C code generation, which violates the
+  Forth-only rule.
+- **The interpreter is the only executor.** Choice: `eval-kl` is the single entry
+  point and the interpreter is the only consumer of the IR; there is no second
+  implementation to compare or keep in step. Rejected: treating the interpreter as
+  only a reference for a compiler, which would keep two executors and their
+  divergence as a maintenance cost.
+- **Streaming reader.** Choice: one form at a time in a resettable scratch region,
   with permanent symbols. Rejected: parsing the whole corpus into one tree, which
   needs the whole-corpus peak plus a second copy and makes a short-memory target
   unusable.
@@ -528,12 +537,15 @@ self-tests, so a broken verifier cannot look green.
 
 ## Status
 
-The pinned kernel boots and initialises on gforth. The long kernel-suite gate
-requires at least 154 passes and zero failures; it is opt-in because the
-interpreter boot under the collector takes about 100 minutes. The default Debug
-gate covers the value, memory, reader, front-end, evaluator, native, arena, GC,
-mode, differential, boot and top level layers on Sloth and gforth. Current counts
-and remaining work belong to the development plan, not to this README.
+The pinned kernel boots and initialises on gforth under the Cheney collector,
+with the tree-walking interpreter as the only executor and a 34 MiB total
+reservation (two 16 MiB semispaces plus the 2 MiB permanent symbol area). The
+long Shen 43.2 conformance suite is the measurement of record; it is opt-in
+because a full interpreter boot under the collector takes about 100 minutes.
+The default Debug gate covers the value, memory, reader, front-end, evaluator,
+GC, differential, boot and top-level layers on Sloth and gforth, with the
+full-boot tests excluded from Sloth by explicit, documented reason. Current
+counts and remaining work belong to the development plan, not to this README.
 
 ## Specification to test traceability
 

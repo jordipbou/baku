@@ -9,6 +9,13 @@ it cannot run in this environment. `baku_spec_traceability` fails when a
 criterion loses its row, a claimed test is not registered, a waiver loses its
 date, or this document drifts from the specs.
 
+The GC-only target has one collector lifetime and one interpreter executor. In the
+booted path, non-GC memory is confined to the permanent symbol area and the
+resettable reader scratch region; there is no current arena or native backend and
+no general non-GC execution mode. Contract statements 8, 9, 11, 14 and 15 are
+superseded by this target, and statements 16 and 19 are deferred with the native
+compiler; `contract.md` `Target status` records the replacement entry text.
+
 ## `ans-forth-only.md`
 
 ### `ans-forth-only#1`
@@ -456,9 +463,9 @@ errors, testing and licensing.
 
 Tests: `baku_spec_traceability`
 
-Evidence: The audit checks the purpose statement and the architecture, memory,
-execution, I/O, testing and licensing sections. The single-execution-path wording is a
-dated waiver until P5 rewrites the README and README_HEADINGS together.
+Evidence: The audit checks the purpose statement and the architecture, values, memory,
+execution, primitives/errors, testing and licensing sections, and requires the single-
+lifetime and single-executor wording that replaced the three-mode text.
 
 ### `documentation#3`
 
@@ -505,10 +512,12 @@ interpreter executor, with no current arena or native backend and no general non
 execution mode. The non-GC memory described is confined to the permanent symbol area and
 the resettable reader scratch region.
 
-Tests: none
+Tests: `baku_spec_traceability`
 
-Evidence: 2026-11-18: the README and generated traceability document are rewritten to
-the single collector lifetime and single interpreter executor in P5.
+Evidence: The README and generated-document check requires the one-collector-lifetime,
+only-executor, permanent-symbol-area and scratch-region wording, and rejects stale
+execution-mode section names, deleted backend filenames and the three-mode text; its
+self-test proves each failure is reported.
 
 ### `documentation#8`
 
@@ -518,8 +527,9 @@ compilation` text for `proj.baku.org`; the real org file is not edited.
 
 Tests: none
 
-Evidence: 2026-11-18: the measurement table, exact verification commands and proposed
-replacement entry text are the final-report deliverable in P5.
+Evidence: 2026-11-19: the measurement table, exact verification commands and proposed
+replacement entry text are the final-report deliverable in P5; the report is produced
+outside the repository and is not a CTest, so this remains a process waiver.
 
 ## `forth-portability.md`
 
@@ -682,8 +692,9 @@ Tests: `baku_region_audit`, `baku_region_audit_selftest`, `baku_spec_traceabilit
 
 Evidence: The region audit fails when shipped 4th/, test/ or CMakeLists.txt names the
 removed arena subsystem, native backend, mode selector or IR scratch; its self-test
-injects baku-mode and requires failure.  The README and generated document half of the
-criterion is extended by the documentation check in P5.
+injects baku-mode and requires failure.  The documentation check in
+baku_spec_traceability rejects the same stale names and the execution-modes section in
+README.md and the generated document.
 
 ### `gc-only-execution#9`
 
