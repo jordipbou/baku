@@ -193,11 +193,13 @@ variable baku-gc-root-add-cells
 \ ---------------------------------------------------------------------------
 \ Table roots
 \
-\ A table cell points at an entry (binding . next).  A GC entry is copied and
-\ then traced by the ordinary Cheney scan.  A non-GC entry came from bootstrap
-\ and may still hold a GC value in its binding tail after a SET; walk it
-\ by shape, without treating an arbitrary non-GC object (a symbol or closure) as
-\ a cons.
+\ A table cell points at an entry (binding . next).  A non-GC entry came from
+\ bootstrap and may still hold a GC value in its binding tail after a SET; walk
+\ it by shape, without treating an arbitrary non-GC object (a symbol or
+\ closure) as a cons.  A GC entry is copied, and the walk continues through the
+\ copied chain: the ordinary Cheney scan traces a copied entry's next cell, but
+\ BAKU-GC-COPY leaves a non-GC next entry unchanged, so a non-GC tail behind a
+\ GC head would otherwise never reach its binding value.
 \ ---------------------------------------------------------------------------
 
 16 constant baku-gc-table-max
@@ -219,14 +221,21 @@ variable baku-gc-table-entry
 	dup baku-gc-table-cell !
 	@ baku-gc-table-entry !
 	begin baku-gc-table-entry @ 0<> while
-		baku-gc-table-entry @ baku-pointer? if
-			baku-gc-table-entry @ baku-region-of baku-region-gc = if
-				baku-gc-table-entry @ baku-gc-copy
-				baku-gc-table-cell @ !
-				exit
-			then
+		baku-gc-table-entry @ baku-pointer? 0= if exit then
+		baku-gc-table-entry @ baku-region-of baku-region-gc = if
+			\ A copied entry lives in the to-space, which is not a
+			\ registered region, so read its next cell directly instead of
+			\ through BAKU-TL.  The Cheney scan traces its binding; the walk
+			\ continues only to reach a non-GC tail behind it.
+			baku-gc-table-entry @ baku-gc-copy
+			dup baku-gc-table-cell @ !
+			dup baku-gc-table-entry !
+			2 cells + baku-gc-table-cell !
+			baku-gc-table-entry @ 2 cells + @ baku-gc-table-entry !
+		else
 			\ Non-GC entry: (binding . next).  The binding is a
 			\ (name . value) cons; only the value can be a GC reference.
+			baku-gc-table-entry @ baku-cons-tl-addr baku-gc-table-cell !
 			baku-gc-table-entry @ baku-hd baku-pointer? if
 				baku-gc-table-entry @ baku-hd
 				dup baku-region-of baku-region-gc = if
@@ -239,8 +248,6 @@ variable baku-gc-table-entry
 				then
 			then
 			baku-gc-table-entry @ baku-tl baku-gc-table-entry !
-		else
-			exit
 		then
 	repeat ;
 

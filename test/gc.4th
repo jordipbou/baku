@@ -127,6 +127,22 @@ gc-pre-list 1 baku-gc-root+
 	baku-gc-collect
 	gc-new-sym @ baku-global-lookup if gc-list @ = else false then 29 check
 
+	\ A GC entry can sit in front of a pre-GC entry in the same bucket.  The
+	\ collector must walk the copied head to reach and update the non-GC
+	\ tail's binding, which the ordinary Cheney scan cannot reach.  G0 and
+	\ G143 collide in the same bucket.
+	s" g0" baku-intern gc-list @ baku-global-define drop
+	s" g143" baku-intern gc-list @ baku-global-define drop
+	s" g0" baku-intern baku-global-bucket @
+		dup baku-region-of baku-region-gc = 57 check
+	dup baku-tl baku-region-of baku-region-nongc = 58 check
+	drop
+	baku-gc-collect
+	s" g0" baku-intern baku-global-lookup
+		if gc-list @ = else false then 59 check
+	s" g143" baku-intern baku-global-lookup
+		if gc-list @ = else false then 60 check
+
 	\ Unreachable allocation is reclaimed: the stress loop allocates far more
 	\ than one semispace and several collections must run.
 	baku-gc-collections @ gc-old !
@@ -167,7 +183,8 @@ gc-pre-list 1 baku-gc-root+
 : gc-pre-setup ( -- )
 	1 baku-fixnum 2 baku-fixnum baku-cons gc-pre-list !
 	s" gc-pre" baku-intern gc-pre-sym !
-	gc-pre-sym @ 7 baku-fixnum baku-global-define drop ;
+	gc-pre-sym @ 7 baku-fixnum baku-global-define drop
+	s" g0" baku-intern 7 baku-fixnum baku-global-define drop ;
 
 : gc-run ( -- )
 	gc-supported-test
