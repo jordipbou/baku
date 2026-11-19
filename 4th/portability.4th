@@ -17,9 +17,9 @@
 : >= ( a b -- flag ) < 0= ;
 
 \ The permanent non-GC block is sized when VALUE.4TH loads.  Under the collector
-\ it holds the interned symbols and constants, not interpreter IR.  A measured
-\ boot interns about 225 KiB of symbols, so 2 MiB leaves headroom; a caller that
-\ needs more must set this cell before including the tree.
+\ it holds only interned symbols, not interpreter IR.  A measured boot interns
+\ about 225 KiB of symbols, so 2 MiB leaves headroom; a caller that needs more
+\ must set this cell before including the tree.
 [DEFINED] baku-nongc-request [IF] [ELSE]
 	variable baku-nongc-request
 	2097152 baku-nongc-request !

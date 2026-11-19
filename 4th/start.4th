@@ -1,17 +1,18 @@
 \ Baku user entry: load the library, boot under the collector and start Shen.
 \
 \ This is the one-line user path described in README.md.  It exists because the
-\ symbol-area and semispace requests are read when 4th/value.4th and
-\ 4th/gc.4th load, and the kernel globals must be bound before boot, so the
-\ library entry point 4th/baku.4th cannot also boot itself without forcing a
+\ symbol-area request is read when 4th/value.4th loads and the semispace request
+\ when BAKU-GC-CREATE runs, and the kernel globals must be bound before boot, so
+\ the library entry point 4th/baku.4th cannot also boot itself without forcing a
 \ lifetime policy on every embedder.  Loading this file is the whole install:
 \ no build step, no generated .4th file, and the kernel is read from
 \ vendor/shen-43.2/klambda/ at run time.
 \
 \ The boot runs on the Cheney collector with the tree-walking interpreter as
 \ the only executor.  4th/portability.4th sizes the permanent symbol area and
-\ both semispaces; a caller that needs a different lifetime sizes those request
-\ cells before loading the tree.  On gforth, from the repository root:
+\ both semispaces; a caller that needs a different lifetime sets
+\ BAKU-NONGC-REQUEST before loading the tree and BAKU-GC-SEMISPACE-REQUEST
+\ before creating the collector.  On gforth, from the repository root:
 \
 \   gforth -m 64M -d 16M -r 16M
 \   s" 4th/start.4th" INCLUDED

@@ -179,14 +179,14 @@ variable baku-assert-code
 \ Non-GC heap and the selected bump heap
 \ ---------------------------------------------------------------------------
 \
-\ The non-GC heap is permanent: symbols and constants live there for the whole
+\ The non-GC heap is permanent: interned symbols live there for the whole
 \ process.  The reader needs a second, temporary bump heap for the parse tree of
 \ one top-level form; BAKU-ALLOC always uses the currently selected heap, so
 \ every constructor (cons, string, vector, float) follows the selection without
 \ a second implementation.  Interning a symbol explicitly binds the non-GC heap
 \ because symbols outlive the form that introduced them.
 \
-\ The non-GC heap holds the permanent symbol table and constants.  Under the
+\ The non-GC heap holds only the permanent symbol table.  Under the
 \ collector it holds no interpreter IR: closures and the IR nodes they reference
 \ are allocated in the GC heap and traced.  The default request in
 \ 4th/portability.4th is 2 MiB; a measured boot interns about 225 KiB of symbols.

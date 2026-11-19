@@ -63,11 +63,11 @@ boot takes about two minutes on gforth (measured 108 s and about 47 MiB peak RSS
 with gforth 0.7.9 and these flags).
 
 The dictionary flags are a target requirement, not a build step. Why the entry
-file exists instead of one word inside `4th/baku.4th`: the symbol-area and
-semispace requests are read when `4th/value.4th` and `4th/gc.4th` load, and the
-kernel globals are bound after loading but before initialisation. Loading the
-library by itself therefore cannot also choose a lifetime policy without forcing
-one on every embedder.
+file exists instead of one word inside `4th/baku.4th`: the symbol-area request is
+read when `4th/value.4th` loads and the semispace request when `baku-gc-create`
+runs, and the kernel globals are bound after loading but before initialisation.
+Loading the library by itself therefore cannot also choose a lifetime policy
+without forcing one on every embedder.
 
 To load only the layers and check the environment, include the library entry
 point. It creates no generated file and prints the startup probe:
@@ -103,9 +103,11 @@ closures and IR are allocated in the GC heap; `4th/baku.4th` only defines them.
 
 `baku-boot-initialise` runs `shen.initialise` then `stlib.initialise`, in that
 order. The defaults in `4th/portability.4th` size the permanent symbol area at
-2 MiB and each semispace at 16 MiB; set the request cells before including the
-tree to change them. The kernel suite overrides them with a 64 MiB symbol area
-and a 256 MiB semispace because it creates gensyms and loads programs.
+2 MiB and each semispace at 16 MiB. Set `baku-nongc-request` before including the
+tree because `4th/value.4th` reads it at load; set `baku-gc-semispace-request`
+before calling `baku-gc-create`, which reads it. The kernel suite overrides them
+with a 64 MiB symbol area and a 256 MiB semispace because it creates gensyms and
+loads programs.
 
 On Sloth the same session works from the repository root; start Sloth with a
 dictionary large enough for the shipped Forth, the permanent symbol area and the
@@ -187,13 +189,12 @@ Baku has one collector lifetime, a small permanent block for interned symbols,
 and a resettable reader scratch region. Nothing else is non-GC after boot.
 
 **Permanent symbol area.** A Forth dictionary block sized by the
-`baku-nongc-request` cell, set before the tree is included. The default is 2 MiB,
-which holds the roughly 230 KiB of symbols interned by a full boot with
+`baku-nongc-request` cell, which `4th/value.4th` reads when it loads. The default
+is 2 MiB, which holds the roughly 225 KiB of symbols interned by a full boot with
 headroom. A symbol's identity is its permanent address: it is never traced and
 never moved, and interning after the collector is activated is the documented
-exception to "no non-GC allocation after bootstrap". The same block holds
-constants created during bootstrap. It holds no compiled code and no
-interpreter IR.
+exception to "no non-GC allocation after bootstrap". The block holds only
+interned symbols: no compiled code, no interpreter IR and no constants.
 
 **Reader scratch.** `4th/reader.4th` registers a 2 MiB block as the
 `baku-region-scratch` region. The next read resets it, so a form is valid only
@@ -509,7 +510,7 @@ self-tests, so a broken verifier cannot look green.
 - **One collector lifetime, with a permanent symbol area.** Requirement: a bounded
   dynamic heap and symbol identity that outlives every form. Choice: one Cheney
   collector owns all heap values, plus a small permanent non-GC block for interned
-  symbols and constants and a resettable reader scratch region. Rejected:
+  symbols and a resettable reader scratch region. Rejected:
   retaining arenas and native non-GC code, which duplicated the executor and kept a
   large dictionary reservation; rejected: GC-allocated symbols, which would make
   symbol identity depend on collection.
