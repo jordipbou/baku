@@ -382,10 +382,12 @@ COVERAGE = {
         "installed kernel functions and the live reader form survive.",
     ),
     "gc-only-execution#3": (
-        "baku_gc-mode_sloth, baku_gc-mode_gforth",
+        "baku_gc-mode_sloth, baku_gc-mode_gforth, "
+        "baku_gc-compile_sloth, baku_gc-compile_gforth",
         "gc-mode applies a stored partial under the collector before and after a "
         "forced collection and evaluates a trap-error-protected expression before and "
-        "after one; both results and the evaluator state agree.",
+        "after one; gc-compile compiles a partial application while the collector "
+        "moves partly built IR. Both results and the evaluator state agree.",
     ),
     "gc-only-execution#4": (
         "baku_gc-mode_sloth, baku_gc-mode_gforth",

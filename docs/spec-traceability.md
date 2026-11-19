@@ -627,10 +627,12 @@ installed kernel functions and the live reader form survive.
 Definitions, globals, closures, curried applications, `trap-error` and an allocation-
 heavy tail loop behave identically before and after a forced collection.
 
-Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`
+Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`, `baku_gc-compile_sloth`,
+`baku_gc-compile_gforth`
 
 Evidence: gc-mode applies a stored partial under the collector before and after a forced
-collection and evaluates a trap-error-protected expression before and after one; both
+collection and evaluates a trap-error-protected expression before and after one; gc-
+compile compiles a partial application while the collector moves partly built IR. Both
 results and the evaluator state agree.
 
 ### `gc-only-execution#4`

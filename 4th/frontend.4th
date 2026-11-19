@@ -179,15 +179,36 @@ variable baku-sym-type
 	repeat
 	drop baku-hd ;
 
+\ Reverse a proper list into fresh conses.  Both the source list and the
+\ growing result stay on the data stack, which the collector scans, so no
+\ reference is ever reachable only through the return stack.  The reader's
+\ BAKU-LIST-REVERSE reverses in place, so it cannot be used on a list the
+\ caller may still share.
+: baku-list-copy-reverse ( list -- rev )
+	baku-nil swap
+	begin dup baku-cons? while
+		dup baku-hd
+		2 pick baku-cons
+		swap baku-tl
+		rot drop
+	repeat
+	dup baku-nil = 0= if baku-front-malformed throw then
+	drop ;
+
 \ Concatenate two proper lists, preserving source order.  The evaluator uses
 \ this to accumulate the arguments of a partial application, so it lives with
-\ the other shared list helpers.
+\ the other shared list helpers.  Reverse-and-copy keeps every live reference
+\ on the data stack across the allocations, unlike a return-stack recursion.
 : baku-list-append ( a b -- a++b )
 	over baku-cons? if
-		over baku-hd >r
-		swap baku-tl swap
-		recurse
-		r> swap baku-cons
+		swap baku-list-copy-reverse
+		begin dup baku-cons? while
+			dup baku-hd
+			rot baku-cons
+			swap baku-tl
+		repeat
+		dup baku-nil = 0= if baku-front-malformed throw then
+		drop
 	else
 		over baku-nil = 0= if baku-front-malformed throw then
 		nip
@@ -200,11 +221,40 @@ variable baku-sym-type
 
 defer baku-frontend
 
+\ Partly built IR lives in the selected heap.  The Forth return stack is not a
+\ GC root, so a builder must not leave a node there across a recursive call that
+\ can collect.  This registered cell stack holds the current node instead; a
+\ nested builder pushes its own cell and pops it before returning, so each level
+\ keeps a distinct root.  BAKU-FRONT-ROOT-MAX bounds the form nesting the
+\ compiler accepts; a deeper form raises a catchable region-full error.
+1024 constant baku-front-root-max
+create baku-front-root-cells baku-front-root-max cells allot
+variable baku-front-root-depth
+0 baku-front-root-depth !
+
+: baku-front-root-push ( node -- )
+	baku-front-root-depth @ baku-front-root-max >= if baku-region-full throw then
+	baku-front-root-depth @ cells baku-front-root-cells + !
+	1 baku-front-root-depth +! ;
+
+: baku-front-root-pop ( -- node )
+	baku-front-root-depth @ 0= if baku-region-full throw then
+	-1 baku-front-root-depth +!
+	baku-front-root-depth @ cells baku-front-root-cells + @ ;
+
+: baku-front-root@ ( -- node )
+	baku-front-root-depth @ 0= if baku-region-full throw then
+	baku-front-root-depth @ 1- cells baku-front-root-cells + @ ;
+
+: baku-front-root-pick ( n -- node )
+	dup baku-front-root-depth @ >= if baku-region-full throw then
+	baku-front-root-depth @ swap - 1- cells baku-front-root-cells + @ ;
+
 : baku-front-nth ( form i tail -- ir )
 	>r baku-list-nth r> baku-frontend ;
 
-: baku-front-nth! ( form i tail node slot -- )
-	>r >r baku-front-nth r> r> baku-vector! ;
+: baku-front-fill ( form i tail slot -- )
+	>r baku-front-nth baku-front-root@ r> baku-vector! ;
 
 \ A string literal read from the reader scratch region must be copied into the
 \ selected heap before its form is released; the IR outlives the form.  Only a
@@ -267,86 +317,76 @@ variable baku-copy-slot
 	repeat
 	baku-copy-list @ baku-nil = 0= if baku-front-malformed throw then ;
 
-variable baku-call-op
-variable baku-call-args
-variable baku-call-node
-
+\ The operator is compiled first and must survive the argument compilation,
+\ which can collect; the root stack holds both it and the call node.
 : baku-front-call ( form tail -- node )
 	over baku-hd false baku-frontend ( form tail op )
-	>r ( form tail | R: op )
-	over baku-tl baku-front-args ( form tail args | R: op )
-	r> baku-call-op ! ( form tail args )
+	baku-front-root-push ( form tail )
+	over baku-tl baku-front-args ( form tail args )
 	dup baku-list-length 3 + ( form tail args size )
 	baku-ir-call ( form tail args size kind )
 	3 pick ( form tail args size kind tail )
 	baku-ir-make ( form tail args node )
-	baku-call-node ! ( form tail args )
-	baku-call-args ! ( form tail )
-	2drop
-	baku-call-op @ baku-call-node @ 2 baku-vector!
-	baku-call-args @ baku-call-node @ 3 baku-copy-into-node
-	baku-call-node @ ;
+	baku-front-root-push ( form tail args )
+	1 baku-front-root-pick baku-front-root@ 2 baku-vector! ( form tail args )
+	baku-front-root@ 3 baku-copy-into-node ( form tail )
+	baku-front-root-pop ( form tail node )
+	baku-front-root-pop drop ( form tail node )
+	nip nip ;
 
 : baku-front-if ( form tail -- node )
 	over baku-list-length 4 <> if baku-front-arity throw then
-	5 baku-ir-if 2 pick baku-ir-make ( form tail node )
-	>r ( form tail | R: node )
-	over 1 false r@ 2 baku-front-nth!
-	over 2 2 pick r@ 3 baku-front-nth!
-	over 3 2 pick r@ 4 baku-front-nth!
-	2drop r> ;
+	5 baku-ir-if 2 pick baku-ir-make baku-front-root-push ( form tail )
+	over 1 false 2 baku-front-fill
+	over 2 2 pick 3 baku-front-fill
+	over 3 2 pick 4 baku-front-fill
+	2drop baku-front-root-pop ;
 
 : baku-front-and ( form tail -- node )
 	over baku-list-length 3 <> if baku-front-arity throw then
-	4 baku-ir-and 2 pick baku-ir-make
-	>r
-	over 1 false r@ 2 baku-front-nth!
-	over 2 2 pick r@ 3 baku-front-nth!
-	2drop r> ;
+	4 baku-ir-and 2 pick baku-ir-make baku-front-root-push ( form tail )
+	over 1 false 2 baku-front-fill
+	over 2 2 pick 3 baku-front-fill
+	2drop baku-front-root-pop ;
 
 : baku-front-or ( form tail -- node )
 	over baku-list-length 3 <> if baku-front-arity throw then
-	4 baku-ir-or 2 pick baku-ir-make
-	>r
-	over 1 false r@ 2 baku-front-nth!
-	over 2 2 pick r@ 3 baku-front-nth!
-	2drop r> ;
+	4 baku-ir-or 2 pick baku-ir-make baku-front-root-push ( form tail )
+	over 1 false 2 baku-front-fill
+	over 2 2 pick 3 baku-front-fill
+	2drop baku-front-root-pop ;
 
 : baku-front-let ( form tail -- node )
 	over baku-list-length 4 <> if baku-front-arity throw then
-	5 baku-ir-let 2 pick baku-ir-make
-	>r
+	5 baku-ir-let 2 pick baku-ir-make baku-front-root-push ( form tail )
 	over 1 baku-list-nth
 	dup baku-symbol? 0= if baku-front-malformed throw then
-	r@ 2 baku-vector!
-	over 2 false r@ 3 baku-front-nth!
-	over 3 2 pick r@ 4 baku-front-nth!
-	2drop r> ;
+	baku-front-root@ 2 baku-vector!
+	over 2 false 3 baku-front-fill
+	over 3 2 pick 4 baku-front-fill
+	2drop baku-front-root-pop ;
 
 : baku-front-lambda ( form tail -- node )
 	over baku-list-length 3 <> if baku-front-arity throw then
-	4 baku-ir-lambda 2 pick baku-ir-make
-	>r
+	4 baku-ir-lambda 2 pick baku-ir-make baku-front-root-push ( form tail )
 	over 1 baku-list-nth
 	dup baku-symbol? 0= if baku-front-malformed throw then
-	r@ 2 baku-vector!
-	over 2 true r@ 3 baku-front-nth!
-	2drop r> ;
+	baku-front-root@ 2 baku-vector!
+	over 2 true 3 baku-front-fill
+	2drop baku-front-root-pop ;
 
 : baku-front-freeze ( form tail -- node )
 	over baku-list-length 2 <> if baku-front-arity throw then
-	3 baku-ir-freeze 2 pick baku-ir-make
-	>r
-	over 1 true r@ 2 baku-front-nth!
-	2drop r> ;
+	3 baku-ir-freeze 2 pick baku-ir-make baku-front-root-push ( form tail )
+	over 1 true 2 baku-front-fill
+	2drop baku-front-root-pop ;
 
 : baku-front-trap-error ( form tail -- node )
 	over baku-list-length 3 <> if baku-front-arity throw then
-	4 baku-ir-trap-error 2 pick baku-ir-make
-	>r
-	over 1 2 pick r@ 2 baku-front-nth!
-	over 2 false r@ 3 baku-front-nth!
-	2drop r> ;
+	4 baku-ir-trap-error 2 pick baku-ir-make baku-front-root-push ( form tail )
+	over 1 2 pick 2 baku-front-fill
+	over 2 false 3 baku-front-fill
+	2drop baku-front-root-pop ;
 
 \ A parameter list becomes a vector of symbols so arity and binding are simple
 \ consumers of the IR.  No recursive compilation happens here, so the
@@ -373,37 +413,38 @@ variable baku-params-slot
 
 : baku-front-defun ( form tail -- node )
 	over baku-list-length 4 <> if baku-front-arity throw then
-	5 baku-ir-defun false baku-ir-make
-	>r
+	5 baku-ir-defun false baku-ir-make baku-front-root-push ( form tail )
 	over 1 baku-list-nth
 	dup baku-symbol? 0= if baku-front-malformed throw then
-	r@ 2 baku-vector!
+	baku-front-root@ 2 baku-vector!
 	over 2 baku-list-nth baku-front-params
-	r@ 3 baku-vector!
-	over 3 true r@ 4 baku-front-nth!
-	2drop r> ;
+	baku-front-root@ 3 baku-vector!
+	over 3 true 4 baku-front-fill
+	2drop baku-front-root-pop ;
 
 \ COND lowers to a node holding a list of [test, result] clause vectors.  The
-\ recursive walk returns the clause list in source order; the node is built once
-\ after the walk, so only the tail flag lives across the recursion.
+\ recursive walk returns the clause list in source order; each clause vector is
+\ held in the root stack while the rest of the clauses are compiled.
+: baku-front-cond-clause ( clause tail -- vector )
+	over baku-list-length 2 <> if baku-front-arity throw then
+	over 0 false baku-front-nth ( clause tail test )
+	2 pick 1 3 pick baku-front-nth ( clause tail test result )
+	2 baku-vector baku-front-root-push ( clause tail test result )
+	baku-front-root@ 1 baku-vector!
+	baku-front-root@ 0 baku-vector!
+	baku-front-root-pop ( clause tail vector )
+	rot drop nip ;
+
 : baku-front-cond-clauses ( clauses tail -- list )
 	over baku-cons? if
-		over baku-hd ( clauses tail clause )
-		dup baku-list-length 2 <> if baku-front-arity throw then
-		dup 0 false baku-front-nth ( clauses tail clause test )
-		>r ( clauses tail clause | R: test )
-		1 2 pick baku-front-nth ( clauses tail result | R: test )
-		r> ( clauses tail result test )
-		2 baku-vector ( clauses tail result test clause-vector )
-		>r ( clauses tail result test | R: clause-vector )
-		r@ 0 baku-vector!
-		r@ 1 baku-vector!
-		r> ( clauses tail clause-vector )
-		rot baku-tl ( tail clause-vector rest )
-		swap ( tail rest clause-vector )
-		>r ( tail rest | R: clause-vector )
-		swap recurse ( restlist | R: clause-vector )
-		r> swap baku-cons
+		over baku-tl ( clauses tail rest )
+		2 pick baku-hd ( clauses tail rest clause )
+		2 pick baku-front-cond-clause ( clauses tail rest vector )
+		baku-front-root-push ( clauses tail rest )
+		swap recurse ( clauses restlist )
+		baku-front-root-pop ( clauses restlist vector )
+		rot drop ( restlist vector )
+		swap baku-cons
 	else
 		over baku-nil = 0= if baku-front-malformed throw then
 		2drop baku-nil
@@ -414,9 +455,9 @@ variable baku-params-slot
 	dup baku-list-length dup 2 < if baku-front-arity throw then
 	drop
 	dup baku-tl ( form clauses | R: tail )
-	r@ baku-front-cond-clauses ( form clauses-list | R: tail )
-	swap drop ( clauses-list | R: tail )
-	3 baku-ir-cond r> baku-ir-make
+	r@ baku-front-cond-clauses ( form list | R: tail )
+	swap drop ( list | R: tail )
+	3 baku-ir-cond r> baku-ir-make ( list node )
 	dup >r 2 baku-vector! r> ;
 
 \ ---------------------------------------------------------------------------
@@ -425,7 +466,7 @@ variable baku-params-slot
 
 variable baku-front-special
 
-: baku-frontend-real ( form tail -- ir )
+: baku-frontend-inner ( form tail -- ir )
 	over baku-cons? if
 		over baku-hd dup baku-symbol? if
 			dup baku-sym-type @ = if
@@ -456,15 +497,29 @@ variable baku-front-special
 		drop baku-front-atom
 	then ;
 
+\ A malformed form throws from inside a builder after it has pushed a root.  The
+\ outermost compile therefore owns the root stack: it resets the depth on both
+\ success and a caught throw, so one bad form cannot leave a stale root or make
+\ the next form start at a raised depth.
+variable baku-front-compiling?
+0 baku-front-compiling? !
+
+: baku-frontend-real ( form tail -- ir )
+	baku-front-compiling? @ if baku-frontend-inner exit then
+	1 baku-front-compiling? !
+	0 baku-front-root-depth !
+	['] baku-frontend-inner catch
+	0 baku-front-compiling? !
+	0 baku-front-root-depth !
+	?dup if throw then ;
+
 ' baku-frontend-real is baku-frontend
 
 \ The IR is built in the selected heap, which is the collector's from-space when
 \ it is active.  These dictionary cells hold partly built IR across a recursive
 \ compilation call that can allocate, so the collector updates them when the IR
-\ moves.
-baku-call-op 1 baku-gc-root+
-baku-call-args 1 baku-gc-root+
-baku-call-node 1 baku-gc-root+
+\ moves.  BAKU-FRONT-ROOT-CELLS is a range because builders nest.
+baku-front-root-cells baku-front-root-max baku-gc-root+
 baku-copy-list 1 baku-gc-root+
 baku-copy-node 1 baku-gc-root+
 baku-params-list 1 baku-gc-root+

@@ -101,6 +101,9 @@ REVIEWED = {
         (1, CATEGORY_SCALAR, "builds a scratch string payload byte by byte"),
     ("4th/repl.4th", "BAKU-REPL-ACC-PUT"):
         (1, CATEGORY_DICTIONARY, "line buffer in dictionary memory"),
+    ("4th/frontend.4th", "BAKU-FRONT-ROOT-PUSH"):
+        (1, CATEGORY_METADATA,
+         "compiler root cell stack is dictionary memory"),
 
     # The value layer owns allocation, headers, the region map and the object
     # writers.
