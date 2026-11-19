@@ -86,17 +86,6 @@ REVIEWED = {
     ("4th/gc.4th", "BAKU-GC-TABLE+"):
         (2, CATEGORY_METADATA, "table root registry cells"),
 
-    # Threaded code, its parameter cells and argument scratch are dictionary
-    # memory.  Literals are copied into the permanent non-GC heap first.
-    ("4th/native.4th", "BAKU-NATIVE-COLLECT"):
-        (1, CATEGORY_DICTIONARY, "native argument buffer"),
-    ("4th/native.4th", "BAKU-NATIVE-COMPILE-BLOCK"):
-        (2, CATEGORY_DICTIONARY, "threaded code block header and parameters"),
-    ("4th/native.4th", "BAKU-NATIVE-PARAM-SET"):
-        (1, CATEGORY_DICTIONARY, "native parameter buffer"),
-    ("4th/native.4th", "BAKU-NATIVE-PUT"):
-        (1, CATEGORY_DICTIONARY, "threaded code emission cursor"),
-
     # Scalar object fields and byte buffers carry no reference.
     ("4th/primitives.4th", "BAKU-NUM-C!"):
         (1, CATEGORY_SCALAR, "formatter scratch buffer in dictionary memory"),
@@ -147,11 +136,61 @@ REVIEWED = {
 COMPILER_RUNTIME = {
     "4th/eval.4th",
     "4th/frontend.4th",
-    "4th/native.4th",
     "4th/boot.4th",
     "4th/repl.4th",
     "4th/compat.4th",
 }
+
+# Names of the removed arena subsystem, native backend and mode selector.  The
+# GC-only target keeps none of them in shipped source, tests or build rules;
+# removal prose belongs in README.md and the generated document, which P5's
+# documentation check owns.
+REMOVED_NAMES = (
+    "arena",
+    "baku-arena",
+    "baku-region-arena",
+    "baku-dict-reserve",
+    "baku-alloc-sync",
+    "baku-closure-native",
+    "baku-native",
+    "baku-mode",
+    "arena.4th",
+    "native.4th",
+    "baku-ir-scratch",
+)
+
+# Reviewed exceptions, keyed by (relative path, token).  The self-test fixture
+# injects a removed name on purpose; everything else in the shipped tree must
+# stay clean, and a future removal note in a source comment must be added here
+# explicitly.
+REMOVED_NAME_ALLOWLIST = {
+    ("test/region-audit-selftest.cmake", "baku-mode"),
+}
+
+
+def removed_name_hits(root):
+    """Return (path, line, token, text) for a removed-name reference."""
+    targets = []
+    targets.extend(sorted((root / "4th").rglob("*.4th")))
+    test_dir = root / "test"
+    if test_dir.is_dir():
+        targets.extend(sorted(test_dir.rglob("*.4th")))
+        targets.extend(sorted(test_dir.rglob("*.cmake")))
+    cmake = root / "CMakeLists.txt"
+    if cmake.exists():
+        targets.append(cmake)
+
+    hits = []
+    for path in targets:
+        rel = path.relative_to(root).as_posix()
+        for line_number, line in enumerate(
+                path.read_text(errors="replace").splitlines(), 1):
+            lowered = line.lower()
+            for token in REMOVED_NAMES:
+                if token in lowered and (rel, token) not in REMOVED_NAME_ALLOWLIST:
+                    hits.append((rel, line_number, token, line.strip()))
+                    break
+    return hits
 
 
 def definition_cells(shipped):
@@ -211,6 +250,7 @@ def audit(root, verbose=False):
     computed_total = 0
     cell_total = 0
     runtime_payload = []
+    removed_hits = removed_name_hits(root)
 
     for path in shipped:
         rel = path.relative_to(root).as_posix()
@@ -261,6 +301,9 @@ def audit(root, verbose=False):
     print(f"  compiler/runtime object-payload writers: {len(runtime_payload)}")
     for rel, unit_name in sorted(set(runtime_payload)):
         print(f"    {rel} {unit_name}")
+    print(f"  removed-subsystem references: {len(removed_hits)}")
+    for rel, line, token, text in removed_hits:
+        print(f"    {rel}:{line}: {token}: {text}")
 
     if violations:
         print("UNREVIEWED-STORES:")
@@ -268,7 +311,7 @@ def audit(root, verbose=False):
             location = f"{rel}:{line}" if line else rel
             print(f"  {location}: {reason}")
 
-    ok = not violations
+    ok = not violations and not removed_hits
     print("REGION-AUDIT " + ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

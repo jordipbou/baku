@@ -41,8 +41,7 @@ variable baku-repl-echo
 	swap baku-nil baku-cons baku-apply ;
 
 \ Call a one-argument KLambda function with a value.  The form is evaluated
-\ through the registered EVAL-KL primitive, so the native backend keeps its IR
-\ scratch and a mode change needs no second path here.
+\ through the registered EVAL-KL primitive, the single executor entry point.
 : baku-repl-call1 ( value sym -- value )
 	swap baku-nil baku-cons baku-cons baku-eval-form ;
 

@@ -30,11 +30,14 @@ run_audit("${work}/good" 0 "current shipped sources")
 if(NOT audit_full MATCHES "REGION-AUDIT PASS")
 	message(FATAL_ERROR "region-audit-selftest: current sources did not print REGION-AUDIT PASS\n${audit_full}")
 endif()
-if(NOT audit_full MATCHES "computed-address stores: 44")
-	message(FATAL_ERROR "region-audit-selftest: current sources did not find 55 computed stores\n${audit_full}")
+if(NOT audit_full MATCHES "computed-address stores: 39")
+	message(FATAL_ERROR "region-audit-selftest: current sources did not find 39 computed stores\n${audit_full}")
 endif()
-if(NOT audit_full MATCHES "reviewed computed-address stores: 44")
+if(NOT audit_full MATCHES "reviewed computed-address stores: 39")
 	message(FATAL_ERROR "region-audit-selftest: current sources did not review every computed store\n${audit_full}")
+endif()
+if(NOT audit_full MATCHES "removed-subsystem references: 0")
+	message(FATAL_ERROR "region-audit-selftest: current sources name a removed subsystem\n${audit_full}")
 endif()
 
 # 2. A raw object-payload store in a compiler unit must fail.
@@ -66,6 +69,16 @@ file(APPEND "${work}/cell/4th/eval.4th"
 run_audit("${work}/cell" 0 "dictionary-cell store")
 if(NOT audit_full MATCHES "REGION-AUDIT PASS")
 	message(FATAL_ERROR "region-audit-selftest: a dictionary-cell store was rejected\n${audit_full}")
+endif()
+
+# 5. A removed-subsystem name in shipped source must fail the audit.
+file(COPY "${SOURCE_DIR}/4th" DESTINATION "${work}/removed")
+file(APPEND "${work}/removed/4th/eval.4th" "\n\\ baku-mode\n")
+run_audit("${work}/removed" 1 "removed-subsystem name")
+if(NOT audit_full MATCHES "REGION-AUDIT FAIL"
+		OR NOT audit_full MATCHES "removed-subsystem references: 1"
+		OR NOT audit_full MATCHES "baku-mode")
+	message(FATAL_ERROR "region-audit-selftest: a removed name was not reported\n${audit_full}")
 endif()
 
 message(STATUS "REGION-AUDIT-SELFTEST PASS")

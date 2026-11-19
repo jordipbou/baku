@@ -36,7 +36,6 @@
 0 constant baku-closure-interpreted
 1 constant baku-closure-primitive
 2 constant baku-closure-partial
-3 constant baku-closure-native
 
 \ Reserved immediate values.  All have low three bits 010 so a future immediate
 \ can be added without colliding with fixnums or pointers.  They are not Forth

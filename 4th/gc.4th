@@ -15,9 +15,9 @@
 \   * the Forth data stack, through a portable stack-scan adapter.
 \
 \ ANS Forth 2012 exposes no stack pointer, so the adapter walks the live data
-\ stack with DEPTH and >R/R>.  The return stack is not a root: GC mode keeps no
-\ GC reference on it when an allocation can run, so the adapter never needs to
-\ reach it.  The adapter uses only ANS words and never fails activation.
+\ stack with DEPTH and >R/R>.  The return stack is not a root: the interpreter
+\ keeps no GC reference on it when an allocation can run, so the adapter never
+\ needs to reach it.  The adapter uses only ANS words and never fails activation.
 \
 \ Region detection stays exact: only the from-space is registered as a GC
 \ region.  The to-space is not a live region, so a pointer to it is never
@@ -131,7 +131,7 @@ variable baku-gc-scan-kind
 				\ The kind slot holds the raw constant, not a tagged fixnum.
 				\ Only an interpreted or partial closure's code slot is a
 				\ Baku reference (IR node or target closure); a primitive
-				\ holds an xt and a native closure a dictionary address.
+				\ holds an xt.
 				baku-gc-scan @ 1 cells + @ baku-gc-scan-kind !
 				baku-gc-scan-kind @ baku-closure-interpreted =
 				baku-gc-scan-kind @ baku-closure-partial = or if
@@ -195,7 +195,7 @@ variable baku-gc-root-add-cells
 \
 \ A table cell points at an entry (binding . next).  A GC entry is copied and
 \ then traced by the ordinary Cheney scan.  A non-GC entry came from bootstrap
-\ and may still hold a GC value in its binding tail after a GC-mode SET; walk it
+\ and may still hold a GC value in its binding tail after a SET; walk it
 \ by shape, without treating an arbitrary non-GC object (a symbol or closure) as
 \ a cons.
 \ ---------------------------------------------------------------------------

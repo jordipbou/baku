@@ -142,8 +142,7 @@ select a native installer.
 Tests: `baku_boot_sloth`, `baku_boot_gforth`
 
 Evidence: The boot test checks the manifest against the loader, the 23 files, 1124 forms
-and 1118 defuns, and it uses the default interpreter installer rather than a native
-installer.
+and 1118 defuns, and it installs every form through the interpreter, the only executor.
 
 ## `contract.md`
 
@@ -595,10 +594,13 @@ exists in shipped source. In the booted path, non-GC memory is confined to inter
 symbols, the resettable reader scratch region and the bootstrap root set created before
 the collector is activated; it holds no compiled code or interpreter IR.
 
-Tests: none
+Tests: `baku_region_audit`, `baku_region_audit_selftest`, `baku_gc-mode_sloth`,
+`baku_gc-mode_gforth`, `baku_gc-boot_gforth`
 
-Evidence: 2026-11-18: the arena and native sources are removed in P3 and P4; until then
-shipped source still names them and boot-native is the user path.
+Evidence: The region audit rejects every removed backend, mode and scratch name in
+shipped 4th/, test/ and CMakeLists.txt and its self-test proves an injected name fails;
+gc-mode and gc-boot prove the booted path is the collector plus the interpreter, with
+non-GC memory confined to symbols and reader scratch.
 
 ### `gc-only-execution#2`
 
@@ -615,20 +617,22 @@ installed kernel functions and the live reader form survive.
 Definitions, globals, closures, curried applications, `trap-error` and an allocation-
 heavy tail loop behave identically before and after a forced collection.
 
-Tests: none
+Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`
 
-Evidence: 2026-11-18: the curried-application and trap-error checks under the collector
-are added to gc-mode in P4.
+Evidence: gc-mode applies a stored partial under the collector before and after a forced
+collection and evaluates a trap-error-protected expression before and after one; both
+results and the evaluator state agree.
 
 ### `gc-only-execution#4`
 
 Applying a non-callable value or an over-applied closure fails with the existing
 catchable evaluator errors; no native closure kind or mode-specific error remains.
 
-Tests: none
+Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`
 
-Evidence: 2026-11-18: the non-callable and over-applied closure checks under the
-collector are added to gc-mode in P4.
+Evidence: gc-mode applies a non-callable value and an over-applied closure before and
+after a forced collection and catches baku-eval-not-callable and baku-eval-arity each
+time.
 
 ### `gc-only-execution#5`
 
@@ -636,31 +640,34 @@ The reader streams one form at a time through a resettable scratch region distin
 the permanent symbol area and the GC heap. Symbols survive the reset, and strings and
 floats are copied into the selected heap before the next read.
 
-Tests: `baku_reader_sloth`, `baku_reader_gforth`, `baku_gc-mode_gforth`
+Tests: `baku_reader_sloth`, `baku_reader_gforth`, `baku_gc-mode_sloth`,
+`baku_gc-mode_gforth`
 
 Evidence: The reader test proves the scratch region is separate and resets between forms
-while interned symbols survive in the non-GC area; gc-mode proves a literal is copied
-into the GC heap across a forced collection.
+while interned symbols survive in the non-GC area; gc-mode proves both a string and a
+float literal are copied into the GC heap and survive a forced collection.
 
 ### `gc-only-execution#6`
 
 The front end, vector IR and shared tail-position flags remain the only compiler-facing
 representation, and the interpreter is their only consumer.
 
-Tests: none
+Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`, `baku_frontend_sloth`,
+`baku_frontend_gforth`, `baku_region_audit`
 
-Evidence: 2026-11-18: the native backend is removed in P4; until then it is a second
-consumer of the IR.
+Evidence: gc-mode evaluates definitions through the registered EVAL-KL primitive and
+checks their closures are interpreted with GC-resident IR; the front-end tests pin the
+shared IR and tail flags, and the region audit rejects any second consumer by name.
 
 ### `gc-only-execution#7`
 
 With the collector active, self and mutual tail calls complete far beyond the Forth
 return-stack depth without overflow.
 
-Tests: none
+Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`
 
-Evidence: 2026-11-18: the GC-only tail test, including mutual recursion, is rewritten in
-P4.
+Evidence: gc-mode runs a 100,000-deep parameterised self tail chain and a 100,000-deep
+mutual even/odd chain with the collector active, before and after a forced collection.
 
 ### `gc-only-execution#8`
 
@@ -671,9 +678,12 @@ reserve`, `baku-alloc-sync` or `baku-closure-native`, except in prose that recor
 removal or defers native compilation to the future. The surviving permanent block may
 still be described as the non-GC symbol area.
 
-Tests: none
+Tests: `baku_region_audit`, `baku_region_audit_selftest`, `baku_spec_traceability`
 
-Evidence: 2026-11-18: the removed-name static check and the source deletions land in P4.
+Evidence: The region audit fails when shipped 4th/, test/ or CMakeLists.txt names the
+removed arena subsystem, native backend, mode selector or IR scratch; its self-test
+injects baku-mode and requires failure.  The README and generated document half of the
+criterion is extended by the documentation check in P5.
 
 ### `gc-only-execution#9`
 
@@ -1181,20 +1191,22 @@ Evidence: Boot loads the tail-recursive kernel loop and the top level drives she
 A test measures or bounds return-stack usage and fails if it grows with depth under the
 collector.
 
-Tests: none
+Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`
 
-Evidence: 2026-11-18: the return-stack bound under the collector moves to the GC-only
-gc-mode test in P4; eval.4th runs on the layer heap.
+Evidence: gc-mode runs the 100,000-deep self tail chain on Sloth's bounded return stack
+with the collector active, so return-stack use cannot grow with depth.
 
 ### `tail-calls#5`
 
 The interpreter's trampoline preserves the same results before and after repeated
 collections during a deep tail chain.
 
-Tests: none
+Tests: `baku_gc-mode_sloth`, `baku_gc-mode_gforth`, `baku_eval_sloth`,
+`baku_eval_gforth`
 
-Evidence: 2026-11-18: the cross-mode differential is removed; P4 adds the before/after-
-collection tail comparison to gc-mode.
+Evidence: gc-mode evaluates the same countdown before and after a forced collection and
+runs the deep chains through repeated moves; eval.4th pins the trampoline result on the
+layer heap.
 
 ### `tail-calls#6`
 

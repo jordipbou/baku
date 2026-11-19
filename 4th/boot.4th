@@ -1,23 +1,19 @@
 \ Baku kernel bootstrap: the load manifest, definition installation and the
 \ host globals the kernel reads.
 \
-\ The loader is mode-independent.  BAKU-INSTALL-FORM receives one top-level form
-\ and installs its definition; it defaults to the interpreter reference, and a
-\ native backend overrides it before calling BAKU-BOOT-LOAD-KERNEL.  The loader
-\ consumes each form before the next read, because a reader form lives in the
-\ scratch arena.
+\ BAKU-INSTALL-FORM receives one top-level form and installs its definition
+\ through the interpreter, the only executor.  The loader consumes each form
+\ before the next read, because a reader form lives in the resettable scratch
+\ region.
 \
 \ The file order below is the boot manifest.  At load time a top-level form is
 \ either a DEFUN or a copyright string and no body runs, so the order has no
-\ semantic effect; it is fixed so a boot is reproducible and a native backend
-\ has one list to compile from.
+\ semantic effect; it is fixed so a boot is reproducible.
 \
 \ Initialisation is a separate step: bind the host globals, then call
 \ SHEN.INITIALISE and STLIB.INITIALISE.  The interpreter keeps the IR of every
-\ definition in the non-GC heap and every EVAL-KL call adds more, so interpreter
-\ initialisation needs a heap far beyond the loader default; the native backend
-\ is the supported non-GC path.  BAKU-BOOT-INITIALISE is correct with a heap
-\ large enough for the selected backend.
+\ definition in the selected heap and every EVAL-KL call adds more, so the
+\ collector must be created and activated before boot.
 
 256 constant baku-boot-path-max
 create baku-boot-path-buf baku-boot-path-max allot
@@ -40,12 +36,9 @@ variable baku-boot-defun-sym
 	baku-boot-name-addr @ swap baku-boot-name-len @ cmove
 	baku-boot-path-buf baku-boot-dir nip baku-boot-name-len @ + ;
 
-defer baku-install-form
-
-\ The interpreter reference backend: lowering and evaluating the form installs
-\ a DEFUN closure or returns a copyright string.
-: baku-install-form-interpreted ( form -- ) baku-eval-kl drop ;
-' baku-install-form-interpreted is baku-install-form
+\ Lowering and evaluating the form installs a DEFUN closure or returns a
+\ copyright string.
+: baku-install-form ( form -- ) baku-eval-kl drop ;
 
 : baku-boot-defun? ( form -- flag )
 	dup baku-cons? if baku-hd baku-boot-defun-sym @ = else drop false then ;

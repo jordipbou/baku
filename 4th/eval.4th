@@ -1,10 +1,10 @@
-\ Baku KLambda interpreter: the correctness reference.
+\ Baku KLambda interpreter: the only executor.
 \
 \ The front end lowers a read form into vector IR; this layer evaluates that IR.
 \ It is the simplest executor that is still complete for the kernel's KLambda
 \ forms: a tree walk over the IR with lexical environments captured by closures.
-\ The same IR is what the native code generator consumes, so the interpreter is
-\ the reference every other mode must match.
+\ The interpreter is the only consumer of the shared IR; the front end and its
+\ tail-position analysis remain the base for a future compiler.
 \
 \ Environments are association lists of (symbol . value) conses allocated in the
 \ selected heap.  A symbol evaluates to its binding when one exists and to
@@ -22,8 +22,8 @@
 \
 \ Global functions live in a dictionary-side bucket table; each entry is a cons
 \ of (name-symbol . closure).  BAKU-DEFPRIM installs a host primitive and
-\ BAKU-EVAL-KL is the single Shen-visible entry point.  Redefinition prepends,
-\ so last-definition-wins without special cases.
+\ BAKU-EVAL-KL is the one Shen-visible executor entry point.  Redefinition
+\ prepends, so last-definition-wins without special cases.
 \
 \ Errors: a host primitive that must raise a Shen error calls BAKU-RAISE, which
 \ stores a Baku value and throws BAKU-EVAL-RAISED.  TRAP-ERROR catches that code
@@ -65,11 +65,6 @@
 -278 constant baku-eval-malformed
 -279 constant baku-eval-unbound
 -280 constant baku-eval-type
-
-\ An execution mode that must not be entered raises this catchable code.  It is
-\ distinct from the collector's inactive/arena/unsupported codes because the
-\ refusal belongs to the executor, not to the allocator.
--285 constant baku-mode-error
 
 variable baku-raised-value
 
@@ -174,11 +169,12 @@ create baku-fn-buckets baku-symbol-buckets-count cells allot
 \ SET and VALUE name a global through an interned symbol, so the table is keyed
 \ by symbol identity like the function table.  An existing binding is updated in
 \ place: the kernel re-sets counters such as shen.*infs* on every inference, and
-\ prepending a fresh pair each time would grow the non-GC heap without bound.
-\ Entries use the same (binding . next) shape as the function table, so a hash
-\ collision cannot hide a binding.  A new binding is a (symbol . value) cons in
-\ the selected heap; at boot that is the permanent non-GC heap, and the table is
-\ a GC root.  The bucket array lives in the dictionary and survives a heap move.
+\ prepending a fresh pair each time would grow the heap without bound.  Entries
+\ use the same (binding . next) shape as the function table, so a hash collision
+\ cannot hide a binding.  A new binding is a (symbol . value) cons in the
+\ selected heap; at boot that is the permanent non-GC symbol area, and the table
+\ is a GC root.  The bucket array lives in the dictionary and survives a heap
+\ move.
 \ ---------------------------------------------------------------------------
 
 create baku-global-buckets baku-symbol-buckets-count cells allot
@@ -415,14 +411,6 @@ variable baku-partial-arity
 	then
 	false ;
 
-\ Native code lives in the dictionary and is installed by 4th/native.4th.  The
-\ defer keeps the application path complete before that layer loads; a native
-\ closure can only exist after the generator has bound this word.
-defer baku-native-run
-: baku-native-unavailable ( code env args -- value )
-	2drop drop baku-eval-not-callable throw ;
-' baku-native-unavailable is baku-native-run
-
 \ The trampoline.  Each iteration applies one closure; an interpreted body that
 \ ends in a tail call leaves a request instead of recursing, so the loop adopts
 \ the new closure and arguments without touching the return stack.  A primitive
@@ -442,19 +430,11 @@ defer baku-native-run
 			baku-apply-fn @ baku-closure-code
 			baku-eval-body
 		else
-			dup baku-closure-native = if
-				drop
-				baku-apply-fn @ baku-closure-code
-				baku-apply-fn @ baku-closure-env
-				baku-apply-args @
-				baku-native-run
-			else
-				drop
-				baku-apply-fn @ baku-closure-code
-				baku-apply-fn @ baku-closure-arity
-				baku-apply-args @
-				baku-apply-primitive
-			then
+			drop
+			baku-apply-fn @ baku-closure-code
+			baku-apply-fn @ baku-closure-arity
+			baku-apply-args @
+			baku-apply-primitive
 		then
 		dup baku-tail-pending? if
 			drop baku-tail-fn @ baku-tail-args @
@@ -588,30 +568,13 @@ defer baku-native-run
 \ Entry points
 \ ---------------------------------------------------------------------------
 
-\ The execution mode follows the active memory region; a caller never selects a
-\ language, only a lifetime policy.  An activated GC selects GC mode; otherwise
-\ non-GC mode is the default.
-0 constant baku-mode-nongc
-1 constant baku-mode-arena
-2 constant baku-mode-gc
-
-: baku-mode ( -- mode )
-	baku-gc-active? if baku-mode-gc exit then
-	baku-mode-nongc ;
-
-: baku-mode-name ( mode -- c-addr u )
-	dup baku-mode-arena = if drop s" Arena" exit then
-	dup baku-mode-gc = if drop s" GC" exit then
-	baku-mode-nongc = if s" Non-GC" exit then
-	baku-invalid-argument throw ;
-
-\ BAKU-EVAL is the internal IR entry used by tests and future compiler modes.
-\ BAKU-EVAL-KL is the interpreter reference: it lowers the form through the
-\ shared front end and then evaluates the IR.  The top-level form is compiled
-\ with the tail flag set, so a top-level tail call also goes through the
-\ trampoline instead of the Forth return stack.  In GC mode the selected heap is
-\ the from-space, so this same path stores the IR and every closure in the GC
-\ and the collector moves them like any other value.
+\ BAKU-EVAL is the internal IR entry used by tests.  BAKU-EVAL-KL lowers the
+\ form through the shared front end and then evaluates the IR; it is the one
+\ executor.  The top-level form is compiled with the tail flag set, so a
+\ top-level tail call also goes through the trampoline instead of the Forth
+\ return stack.  When the collector is active the selected heap is its
+\ from-space, so this same path stores the IR and every closure in the GC and
+\ the collector moves them like any other value.
 : baku-eval ( ir -- value ) baku-nil baku-eval-ir baku-tail-run ;
 : baku-eval-kl ( form -- value ) true baku-frontend baku-eval ;
 
@@ -633,7 +596,7 @@ baku-eval-init
 \ recursive evaluation.  A collection can run inside a constructor, so these
 \ cells are roots; the collector updates them in place.  The two bucket arrays
 \ are table roots because a bootstrap entry may live in non-GC memory and still
-\ hold a GC value after a GC-mode SET.
+\ hold a GC value after a SET while the collector is active.
 
 baku-raised-value 1 baku-gc-root+
 baku-tail-fn 1 baku-gc-root+

@@ -14,12 +14,12 @@ if(NOT GFORTH_EXECUTABLE)
 endif()
 
 include(FetchContent)
-# The pinned corpus contains one form with about 45k cons cells, and Sloth's
-# default stack and dictionary are too small for the reader tests.  A boot test
-# runs on the collector, whose semispaces come from the host heap; the symbol
-# area and the kernel suite's override are dictionary reservations.  These are
+# The pinned corpus contains one form with about 45k cons cells that the reader
+# holds in its 2 MiB scratch block, so Sloth's default dictionary is too small.
+# The shipped Forth, the 2 MiB symbol area and the 2 MiB reader scratch fit in
+# 64 MiB with headroom; the semispaces come from the host heap.  These are
 # test-platform limits, not build defaults.
-set(SLOTH_DICTIONARY_SIZE 671088640 CACHE STRING
+set(SLOTH_DICTIONARY_SIZE 67108864 CACHE STRING
 	"Sloth dictionary size for the Baku test platform" FORCE)
 add_compile_definitions(SLOTH_STACK_SIZE=16384 SLOTH_RETURN_STACK_SIZE=16384)
 FetchContent_Declare(
@@ -131,7 +131,7 @@ add_test(NAME baku_primitive_manifest_selftest
 # The one-line user path: copy a checkout without build/, CMakeLists.txt or
 # run-tests.sh, load 4th/start.4th through the gforth target, and require the
 # top level to answer while boot generates no .4th file.  It boots the whole
-# kernel, so it is gforth-only for the same reason as boot-native.
+# kernel, so it runs only on gforth.
 add_test(NAME baku_no_build
 	COMMAND ${CMAKE_COMMAND}
 		-DGFORTH_EXECUTABLE=${GFORTH_EXECUTABLE}
@@ -189,8 +189,7 @@ file(GLOB BAKU_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test/*.4th)
 # These tests initialise the whole kernel and are too slow on Sloth's Debug
 # build; each entry carries its own reason for the traceability audit.  Every
 # glob-registered test that is not enabled for Sloth must appear here.
-set(BAKU_NATIVE_BOOT_TESTS
-	boot-native  # initialises the whole kernel; native Debug on Sloth takes minutes
+set(BAKU_GFORTH_ONLY_TESTS
 	gc-boot      # boots and initialises the whole kernel under the collector
 	kernel       # initialises the whole kernel; Debug on Sloth takes minutes
 	repl         # boots the whole kernel before the REPL; Debug on Sloth takes minutes
@@ -199,14 +198,14 @@ set(BAKU_NATIVE_BOOT_TESTS
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
 
-	# The boot acceptance tests (boot-native, gc-boot, kernel, repl) initialise
-	# the whole kernel.  Sloth's Debug execution takes about 10 minutes for
+	# The boot acceptance tests (gc-boot, kernel, repl) initialise the whole
+	# kernel.  Sloth's Debug execution takes about 10 minutes for
 	# SHEN.INITIALISE alone and several times that for STLIB.INITIALISE, so
 	# those tests run on gforth.  kernel-suite is the long collector run and is
 	# excluded for the same speed reason.  The standard-input test reads the
 	# CTest input file and is registered below.
 	set(test_targets ${BAKU_REQUIRED_TARGETS})
-	if(test_name IN_LIST BAKU_NATIVE_BOOT_TESTS)
+	if(test_name IN_LIST BAKU_GFORTH_ONLY_TESTS)
 		list(REMOVE_ITEM test_targets sloth)
 	endif()
 	if(test_name STREQUAL "repl-eof")
@@ -219,10 +218,15 @@ foreach(test_file IN LISTS BAKU_TESTS)
 			set(forth_flags "")
 		elseif(target STREQUAL "gforth")
 			set(forth_command ${GFORTH_EXECUTABLE})
-			# The native boot test reserves a 512 MiB non-GC heap, the 4 MiB IR
-			# scratch and the 2 MiB reader scratch; every other test fits 64M.
-			if(test_name IN_LIST BAKU_NATIVE_BOOT_TESTS)
-				set(forth_flags "-m 768M -d 16M -r 16M")
+			# The measured default boot needs -m 64M for the shipped Forth plus
+			# the 2 MiB symbol area, and larger data/return stacks for the
+			# deepest reader form and STLIB.INITIALISE.  The kernel suite
+			# overrides the symbol area to 64 MiB, so it needs a larger
+			# dictionary; every other test fits 64M.
+			if(test_name STREQUAL "kernel-suite")
+				set(forth_flags "-m 128M -d 16M -r 16M")
+			elseif(test_name IN_LIST BAKU_GFORTH_ONLY_TESTS)
+				set(forth_flags "-m 64M -d 16M -r 16M")
 			else()
 				set(forth_flags "-m 64M")
 			endif()

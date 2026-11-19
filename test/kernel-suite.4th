@@ -16,7 +16,6 @@
 \
 \ Why gforth only: Sloth's Debug execution is too slow for this long suite.
 \ The collector itself runs on both targets; the stack-scan adapter is ANS-only.
-\ The full non-GC corpus loader still runs on Sloth in test/native.4th.
 \
 \ Why `*home-directory*` is bound after initialisation: `stlib.initialise`
 \ calls `(cd "")`, which resets it to the empty string.  `(load "file")` opens a

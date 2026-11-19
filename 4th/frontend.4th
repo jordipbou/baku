@@ -1,9 +1,9 @@
 \ Baku KLambda compiler front end.
 \
 \ The reader produces the raw form tree.  This layer validates it and lowers it
-\ into a mode-independent intermediate representation shared by the interpreter
-\ and the native code generator.  Tail-position analysis lives here, not in a
-\ mode: every mode consumes the same tail flags.
+\ into an intermediate representation consumed by the interpreter.  Tail-position
+\ analysis lives here; the front end and the vector IR are retained as the base
+\ for a future compiler.
 \
 \ An IR node is a Baku vector:
 \
@@ -34,8 +34,7 @@
 \ An IR node built from a reader form is valid only until the next read: the
 \ node itself is allocated in the selected heap, but string and symbol payloads
 \ in the form may point into the reader scratch region.  The caller must consume
-\ or copy the node first.  The front end itself is mode-agnostic: the memory mode
-\ selects a backend, not a language.
+\ or copy the node first.  The front end itself is independent of any backend.
 
 \ ---------------------------------------------------------------------------
 \ Errors
@@ -78,31 +77,7 @@ variable baku-sym-freeze
 variable baku-sym-trap-error
 variable baku-sym-type
 
-\ Native IR scratch.  The native backend lowers one form at a time and frees
-\ the IR after compiling it; the interpreter keeps IR as closure code and never
-\ selects this block.  It is a fixed dictionary region registered with the
-\ scratch kind, like the reader scratch region.
-baku-ir-scratch-request @ constant baku-ir-scratch-size
-
-align create baku-ir-scratch baku-ir-scratch-size allot align
-
-variable baku-ir-scratch-here
-variable baku-ir-scratch-end
-
-: baku-use-ir-scratch ( -- )
-	baku-ir-scratch-here baku-ir-scratch-end baku-use-heap ;
-
-: baku-ir-scratch-reset ( -- )
-	baku-ir-scratch baku-ir-scratch-here ! ;
-
-: baku-ir-scratch-init ( -- )
-	baku-ir-scratch baku-ir-scratch-here !
-	baku-ir-scratch baku-ir-scratch-size + baku-ir-scratch-end !
-	baku-ir-scratch baku-ir-scratch-here baku-region-scratch baku-region+ drop
-	baku-use-nongc ;
-
 : baku-frontend-init ( -- )
-	baku-ir-scratch-init
 	s" if" baku-intern baku-sym-if !
 	s" and" baku-intern baku-sym-and !
 	s" or" baku-intern baku-sym-or !
@@ -483,9 +458,10 @@ variable baku-front-special
 
 ' baku-frontend-real is baku-frontend
 
-\ The IR is built in the selected heap, which is the GC from-space in GC mode.
-\ These dictionary cells hold partly built IR across a recursive compilation
-\ call that can allocate, so the collector must update them when the IR moves.
+\ The IR is built in the selected heap, which is the collector's from-space when
+\ it is active.  These dictionary cells hold partly built IR across a recursive
+\ compilation call that can allocate, so the collector updates them when the IR
+\ moves.
 baku-call-op 1 baku-gc-root+
 baku-call-args 1 baku-gc-root+
 baku-call-node 1 baku-gc-root+

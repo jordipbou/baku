@@ -76,7 +76,7 @@ s" (hd (cons 1 2))" run baku-fixnum-value 1 = 12 check
 s" (tl (cons 1 2))" run baku-fixnum-value 2 = 13 check
 
 \ A string atom is returned as the string object.  The fixture is read and
-\ evaluated before the next read resets the reader scratch arena.
+\ evaluated before the next read resets the reader scratch region.
 s" test/fixtures/strings.kl" baku-read-file
 baku-read-form drop baku-eval-kl
 dup baku-string-length 17 = 14 check

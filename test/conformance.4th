@@ -16,8 +16,8 @@
 \ independent of host string-escape extensions.
 \
 \ The parameterised countdown allocates one interpreted frame per iteration, so
-\ the non-GC heap request is raised from the 512 KiB default to 1 MiB.  Deeper
-\ constant-space evidence is in test/eval.4th and test/native.4th; this file
+\ the symbol-area request is raised from the default to 1 MiB.  Deeper
+\ constant-space evidence is in test/eval.4th and test/gc-mode.4th; this file
 \ only needs the answer to agree across targets.
 \
 \ gforth resolves a nested INCLUDED relative to the including file; Sloth

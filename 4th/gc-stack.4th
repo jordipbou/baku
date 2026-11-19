@@ -6,7 +6,7 @@
 \ reach and replace every live cell.  Pushing all cells and popping them back
 \ reverses twice, so the stack order is preserved.
 \
-\ The return stack is not scanned.  In GC mode no GC reference stays on the
+\ The return stack is not scanned.  The interpreter keeps no GC reference on the
 \ return stack when an allocation can run: 4th/eval.4th keeps interpreter state
 \ on the data stack or in registered roots, and the remaining >R uses hold a
 \ fixnum, a symbol or a dictionary address.  A collection therefore never has a

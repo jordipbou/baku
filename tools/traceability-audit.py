@@ -136,8 +136,8 @@ COVERAGE = {
     "bootstrap-and-repl#9": (
         "baku_boot_sloth, baku_boot_gforth",
         "The boot test checks the manifest against the loader, the 23 files, 1124 "
-        "forms and 1118 defuns, and it uses the default interpreter installer rather "
-        "than a native installer.",
+        "forms and 1118 defuns, and it installs every form through the interpreter, "
+        "the only executor.",
     ),
 
     # contract.md
@@ -365,9 +365,12 @@ COVERAGE = {
 
     # gc-only-execution.md
     "gc-only-execution#1": (
-        "",
-        "2026-11-18: the arena and native sources are removed in P3 and P4; until then "
-        "shipped source still names them and boot-native is the user path.",
+        "baku_region_audit, baku_region_audit_selftest, baku_gc-mode_sloth, "
+        "baku_gc-mode_gforth, baku_gc-boot_gforth",
+        "The region audit rejects every removed backend, mode and scratch name in "
+        "shipped 4th/, test/ and CMakeLists.txt and its self-test proves an injected "
+        "name fails; gc-mode and gc-boot prove the booted path is the collector plus "
+        "the interpreter, with non-GC memory confined to symbols and reader scratch.",
     ),
     "gc-only-execution#2": (
         "baku_gc-boot_gforth",
@@ -375,35 +378,45 @@ COVERAGE = {
         "installed kernel functions and the live reader form survive.",
     ),
     "gc-only-execution#3": (
-        "",
-        "2026-11-18: the curried-application and trap-error checks under the collector "
-        "are added to gc-mode in P4.",
+        "baku_gc-mode_sloth, baku_gc-mode_gforth",
+        "gc-mode applies a stored partial under the collector before and after a "
+        "forced collection and evaluates a trap-error-protected expression before and "
+        "after one; both results and the evaluator state agree.",
     ),
     "gc-only-execution#4": (
-        "",
-        "2026-11-18: the non-callable and over-applied closure checks under the "
-        "collector are added to gc-mode in P4.",
+        "baku_gc-mode_sloth, baku_gc-mode_gforth",
+        "gc-mode applies a non-callable value and an over-applied closure before and "
+        "after a forced collection and catches baku-eval-not-callable and "
+        "baku-eval-arity each time.",
     ),
     "gc-only-execution#5": (
-        "baku_reader_sloth, baku_reader_gforth, baku_gc-mode_gforth",
+        "baku_reader_sloth, baku_reader_gforth, baku_gc-mode_sloth, "
+        "baku_gc-mode_gforth",
         "The reader test proves the scratch region is separate and resets between forms "
-        "while interned symbols survive in the non-GC area; gc-mode proves a literal is "
-        "copied into the GC heap across a forced collection.",
+        "while interned symbols survive in the non-GC area; gc-mode proves both a "
+        "string and a float literal are copied into the GC heap and survive a forced "
+        "collection.",
     ),
     "gc-only-execution#6": (
-        "",
-        "2026-11-18: the native backend is removed in P4; until then it is a second "
-        "consumer of the IR.",
+        "baku_gc-mode_sloth, baku_gc-mode_gforth, baku_frontend_sloth, "
+        "baku_frontend_gforth, baku_region_audit",
+        "gc-mode evaluates definitions through the registered EVAL-KL primitive and "
+        "checks their closures are interpreted with GC-resident IR; the front-end "
+        "tests pin the shared IR and tail flags, and the region audit rejects any "
+        "second consumer by name.",
     ),
     "gc-only-execution#7": (
-        "",
-        "2026-11-18: the GC-only tail test, including mutual recursion, is rewritten "
-        "in P4.",
+        "baku_gc-mode_sloth, baku_gc-mode_gforth",
+        "gc-mode runs a 100,000-deep parameterised self tail chain and a 100,000-deep "
+        "mutual even/odd chain with the collector active, before and after a forced "
+        "collection.",
     ),
     "gc-only-execution#8": (
-        "",
-        "2026-11-18: the removed-name static check and the source deletions land in "
-        "P4.",
+        "baku_region_audit, baku_region_audit_selftest, baku_spec_traceability",
+        "The region audit fails when shipped 4th/, test/ or CMakeLists.txt names the "
+        "removed arena subsystem, native backend, mode selector or IR scratch; its "
+        "self-test injects baku-mode and requires failure.  The README and generated "
+        "document half of the criterion is extended by the documentation check in P5.",
     ),
     "gc-only-execution#9": (
         "baku_boot_sloth, baku_boot_gforth, baku_gc-boot_gforth",
@@ -661,14 +674,15 @@ COVERAGE = {
         "Boot loads the tail-recursive kernel loop and the top level drives shen.loop.",
     ),
     "tail-calls#4": (
-        "",
-        "2026-11-18: the return-stack bound under the collector moves to the GC-only "
-        "gc-mode test in P4; eval.4th runs on the layer heap.",
+        "baku_gc-mode_sloth, baku_gc-mode_gforth",
+        "gc-mode runs the 100,000-deep self tail chain on Sloth's bounded return stack "
+        "with the collector active, so return-stack use cannot grow with depth.",
     ),
     "tail-calls#5": (
-        "",
-        "2026-11-18: the cross-mode differential is removed; P4 adds the "
-        "before/after-collection tail comparison to gc-mode.",
+        "baku_gc-mode_sloth, baku_gc-mode_gforth, baku_eval_sloth, baku_eval_gforth",
+        "gc-mode evaluates the same countdown before and after a forced collection and "
+        "runs the deep chains through repeated moves; eval.4th pins the trampoline "
+        "result on the layer heap.",
     ),
     "tail-calls#6": (
         "baku_frontend_sloth, baku_frontend_gforth, baku_eval_sloth, baku_eval_gforth",
