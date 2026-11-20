@@ -5,9 +5,11 @@ the coverage table in that tool. Do not hand-edit.
 
 Every acceptance criterion and every contract entry statement below names the
 registered CTest tests that verify it, or carries a dated waiver explaining why
-it cannot run in this environment. `baku_spec_traceability` fails when a
-criterion loses its row, a claimed test is not registered, a waiver loses its
-date, or this document drifts from the specs.
+it cannot run in this environment. A row may name tests for the runnable part and
+also carry a dated deferral for a part that cannot run here, such as the 32-bit
+adaptation. `baku_spec_traceability` fails when a criterion loses its row, a
+claimed test is not registered, a waiver or deferral loses its date, or this
+document drifts from the specs.
 
 The GC-only target has one collector lifetime and one interpreter executor. In the
 booted path, non-GC memory is confined to the permanent symbol area and the
@@ -47,8 +49,9 @@ future work for the deferred adaptation.
 Tests: `baku_values_sloth`, `baku_values_gforth`, `baku_conformance_sloth`,
 `baku_conformance_gforth`
 
-Evidence: The same sources run on the two 64-bit targets; the 32-bit adaptation is
-deferred by the M0 decision.
+Evidence: 2026-11-19: the same sources load and run on the two 64-bit targets; the
+32-bit clause is future work for the adaptation deferred by M0, and no 32-bit target
+exists.
 
 ### `ans-forth-only#4`
 
@@ -178,7 +181,8 @@ Tests: `baku_ans_audit`, `baku_ans_audit_selftest`, `baku_probe_sloth`,
 `baku_eval_gforth`
 
 Evidence: Statements 2, 3, 4, 7, 13 and 17 are each checked by the named audits and
-tests; the superseded and deferred statements carry dated waivers in their own rows.
+tests; the superseded statements and the native-compiler statements carry dated waivers
+in their own rows.
 
 ### `contract#3`
 
@@ -251,8 +255,8 @@ The current target is 64-bit cells and addresses; a future 32-bit Forth adaptati
 Tests: `baku_values_sloth`, `baku_values_gforth`, `baku_conformance_sloth`,
 `baku_conformance_gforth`
 
-Evidence: 64-bit cells and wide literals are exercised on both targets; the 32-bit
-adaptation remains deferred.
+Evidence: 2026-11-19: 64-bit cells and wide literals are exercised on both targets; the
+future 32-bit adaptation is deferred by M0 and has no target.
 
 ### `contract#statement-4`
 
@@ -955,8 +959,9 @@ fallback the value spec allows.
 Tests: `baku_reader_sloth`, `baku_reader_gforth`, `baku_primitives_sloth`,
 `baku_primitives_gforth`
 
-Evidence: The literals read and compare on 64-bit cells; the 32-bit cell run is part of
-the deferred adaptation.
+Evidence: 2026-11-19: the six literals read and compare on the two 64-bit targets; the
+32-bit cell run named by this criterion is part of the adaptation deferred by M0, and no
+32-bit target exists.
 
 ### `klambda-reader#8`
 
@@ -1383,7 +1388,8 @@ wider cell than it declares.
 Tests: `baku_values_sloth`, `baku_values_gforth`, `baku_conformance_sloth`,
 `baku_conformance_gforth`
 
-Evidence: Tag and header checks run on 64-bit cells; the 32-bit run is deferred.
+Evidence: 2026-11-19: tag and header checks run on both 64-bit targets; the 32-bit run
+is deferred by M0 and has no target.
 
 ### `value-representation#3`
 

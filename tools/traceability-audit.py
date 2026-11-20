@@ -6,7 +6,9 @@ at least one named test.  The specs live in the Ralph workspace, outside this
 repository, so this audit reads them at check time and compares them with a
 reviewed coverage table.  A criterion is either covered by one or more
 registered CTest tests, or it carries a dated waiver explaining why it cannot
-run here.
+run here.  A row may name tests for the runnable part and also record a
+deferred part (for example the 32-bit adaptation); that deferral must be dated
+so an undated "future work" note cannot hide behind a passing 64-bit test.
 
 The coverage table below is the single source of truth for the mapping.  The
 committed ``docs/spec-traceability.md`` is generated from it and from the spec
@@ -29,7 +31,9 @@ Checks:
     pointer, the runner markers, and no status or progress prose in
     ``.ralph/AGENTS.md``;
   * a dated waiver replaces the tests when a criterion cannot run in this
-    environment (offline checks and the deferred 32-bit adaptation).
+    environment (offline checks and the deferred 32-bit adaptation);
+  * a row that names tests but records a deferred part of its criterion must
+    date that deferral.
 
 Usage:
 
@@ -53,6 +57,7 @@ DEFAULT_AGENTS = HERE.parent / ".ralph" / "AGENTS.md"
 OUTPUT = HERE / "docs" / "spec-traceability.md"
 
 WAIVER_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}):\s+\S")
+DEFERRAL_RE = re.compile(r"\b(defer\w*|future work)\b", re.IGNORECASE)
 
 # "eval-kl" is the executor entry point: the kernel applies it during
 # initialisation, so no test calls the host word directly.  The boot and kernel
@@ -64,7 +69,9 @@ PRIMITIVE_EXCEPTIONS = {
 
 # Coverage rows keyed by criterion id.  The value is (tests, evidence): tests
 # is a comma-separated list of registered CTest names, and evidence explains
-# what the named checks prove or why a dated waiver is the honest answer.
+# what the named checks prove or why a dated waiver is the honest answer.  When
+# a row has tests and its evidence records a deferred part of the criterion,
+# the evidence must open with the date of that deferral.
 COVERAGE = {
     # ans-forth-only.md
     "ans-forth-only#1": (
@@ -80,8 +87,9 @@ COVERAGE = {
     "ans-forth-only#3": (
         "baku_values_sloth, baku_values_gforth, baku_conformance_sloth, "
         "baku_conformance_gforth",
-        "The same sources run on the two 64-bit targets; the 32-bit adaptation is "
-        "deferred by the M0 decision.",
+        "2026-11-19: the same sources load and run on the two 64-bit targets; the "
+        "32-bit clause is future work for the adaptation deferred by M0, and no "
+        "32-bit target exists.",
     ),
     "ans-forth-only#4": (
         "baku_ans_audit, baku_ans_audit_selftest",
@@ -154,8 +162,8 @@ COVERAGE = {
         "baku_region_audit, baku_region_audit_selftest, baku_eval_sloth, "
         "baku_eval_gforth",
         "Statements 2, 3, 4, 7, 13 and 17 are each checked by the named audits and "
-        "tests; the superseded and deferred statements carry dated waivers in their "
-        "own rows.",
+        "tests; the superseded statements and the native-compiler statements carry "
+        "dated waivers in their own rows.",
     ),
     "contract#3": (
         "baku_compat_sloth, baku_compat_gforth, baku_kernel_gforth, "
@@ -190,8 +198,8 @@ COVERAGE = {
     "contract#statement-3": (
         "baku_values_sloth, baku_values_gforth, baku_conformance_sloth, "
         "baku_conformance_gforth",
-        "64-bit cells and wide literals are exercised on both targets; the 32-bit "
-        "adaptation remains deferred.",
+        "2026-11-19: 64-bit cells and wide literals are exercised on both targets; "
+        "the future 32-bit adaptation is deferred by M0 and has no target.",
     ),
     "contract#statement-4": (
         "baku_reader_sloth, baku_reader_gforth, baku_boot_sloth, baku_boot_gforth, "
@@ -555,8 +563,9 @@ COVERAGE = {
     "klambda-reader#7": (
         "baku_reader_sloth, baku_reader_gforth, baku_primitives_sloth, "
         "baku_primitives_gforth",
-        "The literals read and compare on 64-bit cells; the 32-bit cell run is part of "
-        "the deferred adaptation.",
+        "2026-11-19: the six literals read and compare on the two 64-bit targets; the "
+        "32-bit cell run named by this criterion is part of the adaptation deferred by "
+        "M0, and no 32-bit target exists.",
     ),
     "klambda-reader#8": (
         "baku_reader_sloth, baku_reader_gforth",
@@ -779,7 +788,8 @@ COVERAGE = {
     "value-representation#2": (
         "baku_values_sloth, baku_values_gforth, baku_conformance_sloth, "
         "baku_conformance_gforth",
-        "Tag and header checks run on 64-bit cells; the 32-bit run is deferred.",
+        "2026-11-19: tag and header checks run on both 64-bit targets; the 32-bit "
+        "run is deferred by M0 and has no target.",
     ),
     "value-representation#3": (
         "baku_values_sloth, baku_values_gforth, baku_gc_gforth, baku_reader_sloth, "
@@ -818,9 +828,11 @@ the coverage table in that tool. Do not hand-edit.
 
 Every acceptance criterion and every contract entry statement below names the
 registered CTest tests that verify it, or carries a dated waiver explaining why
-it cannot run in this environment. `baku_spec_traceability` fails when a
-criterion loses its row, a claimed test is not registered, a waiver loses its
-date, or this document drifts from the specs.
+it cannot run in this environment. A row may name tests for the runnable part and
+also carry a dated deferral for a part that cannot run here, such as the 32-bit
+adaptation. `baku_spec_traceability` fails when a criterion loses its row, a
+claimed test is not registered, a waiver or deferral loses its date, or this
+document drifts from the specs.
 
 The GC-only target has one collector lifetime and one interpreter executor. In the
 booted path, non-GC memory is confined to the permanent symbol area and the
@@ -1071,6 +1083,9 @@ def validate_coverage(criteria, coverage, registered, violations):
                 violations.append(
                     (criterion, "no test and no dated waiver"))
             continue
+        if DEFERRAL_RE.search(evidence) and not WAIVER_RE.match(evidence):
+            violations.append(
+                (criterion, "undated deferral on a row with tests"))
         for name in names:
             if registered is not None and name not in registered:
                 violations.append(
@@ -1572,6 +1587,21 @@ def self_test():
         undated["alpha#2"] = ("", "blocked without a date")
         validate_coverage(criteria, undated, registered, violations)
         report("undated waiver", violations, "no test and no dated waiver")
+
+        violations = []
+        undated_deferral = dict(SELF_COVERAGE)
+        undated_deferral["alpha#1"] = (
+            "baku_alpha_sloth", "the adaptation is deferred")
+        validate_coverage(criteria, undated_deferral, registered, violations)
+        report("undated deferral with tests", violations,
+               "undated deferral on a row with tests")
+
+        violations = []
+        dated_deferral = dict(SELF_COVERAGE)
+        dated_deferral["alpha#1"] = (
+            "baku_alpha_sloth", "2026-11-14: the adaptation is deferred")
+        validate_coverage(criteria, dated_deferral, registered, violations)
+        report("dated deferral with tests", violations, expect_clean=True)
 
         rendered = render(criteria, SELF_COVERAGE)
         doc = base / "docs" / "spec-traceability.md"
