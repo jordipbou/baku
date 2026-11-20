@@ -138,8 +138,8 @@ consume the earlier representation.
 | `4th/portability.4th` | ANS fallbacks for `CELL`, `-ROT`, `<=`, `>=`; the guarded symbol-area and semispace request cells |
 | `4th/probe.4th` | Startup probe for the required ANS Forth 2012 wordsets |
 | `4th/value.4th` | Tagged values, region map, uniform object headers, constructors and accessors |
-| `4th/gc.4th` | Cheney copying collector, roots and activation rules |
-| `4th/gc-stack.4th` | Data-stack root adapter; portable `DEPTH`/`>R`/`R>` scan |
+| `4th/gc.4th` | Cheney copying collector, pre-collection validation, roots and activation rules |
+| `4th/gc-stack.4th` | Data-stack root adapter; snapshots live cells into a host buffer and restores them after copying |
 | `4th/reader.4th` | Streaming KLambda text reader and reader scratch region |
 | `4th/frontend.4th` | Form validation, vector IR and shared tail-position analysis |
 | `4th/eval.4th` | Tree-walking interpreter, the only executor |
@@ -218,10 +218,21 @@ Roots are the only non-GC memory allowed to hold GC references. They are
 registered dictionary cells and ranges, the function and global tables (whose
 bucket chains may live in non-GC memory and still hold GC values), the shared
 tail-call cells and the Forth data stack. ANS Forth 2012 exposes no stack
-pointer, so `4th/gc-stack.4th` walks the live data stack with `DEPTH` and
-`>R`/`R>`, which are ANS words. The return stack is not a root: the interpreter
-keeps no GC reference on it when an allocation can run, so the collector never
-needs to reach it. The adapter therefore works on every ANS target.
+pointer, so `4th/gc-stack.4th` snapshots the live data-stack cells into a host
+buffer, copies each snapshot back, and restores the original order. Moving
+every cell through the return stack would make the adapter's return-stack use
+grow with the data-stack depth; the host buffer keeps it constant. The return
+stack is not a root: the interpreter keeps no GC reference on it when an
+allocation can run, so the collector never needs to reach it. The adapter uses
+only ANS words and works on every ANS target.
+
+Before a collection mutates anything, `baku-gc-check` walks the from-space,
+marks every object start, and validates every header, structural field,
+registered root, data-stack cell and table binding. A corrupt header or an
+interior pointer is a catchable `baku-invalid-object`, and the check runs
+before the first header, root or table cell is touched. Because the reachable
+set is a subset of the validated objects, the equal-sized to-space cannot
+overflow, so a collection either completes or aborts before the first write.
 
 The checked store remains deferred by the project entry, so a cross-region
 violation is a bug rather than a catchable error. `tools/region-audit.py`
@@ -351,10 +362,16 @@ The layers and their tests:
 - `test/frontend.4th`, `test/eval.4th`: IR shape and tail positions, special
   forms, currying, globals, tail calls and error paths;
 - `test/gc.4th`: region classification, roots, cycles, shared tails, strings,
-  vectors and closures before and after a forced collection;
+  vectors and closures before and after a forced collection, plus the
+  pre-collection validation that rejects a corrupt header or interior pointer
+  before any object is forwarded;
 - `test/gc-mode.4th`: the collector-active execution path, including currying,
   `trap-error`, non-callable and over-applied errors, and 100,000-deep self and
   mutual tail chains on both targets;
+- `test/gc-compile.4th`: lowering and compiling forms while the collector is
+  active, including partly built IR kept reachable across a nested compile;
+- `test/gc-deep-stack.4th`: a deep live data stack survives a collection through
+  the host-buffer snapshot on both targets;
 - `test/gc-boot.4th`: the full user boot under the shipped defaults, including
   the post-activation helper install, followed by a forced collection that must
   preserve the boot state; it also proves those helpers' closures and IR are GC
@@ -420,9 +437,9 @@ ctest --test-dir build -C Debug -R '^baku_(ans_audit|vendor_audit|region_audit|p
 
 `tools/ans-audit.py` follows `4th/baku.4th` and maps every external word to its
 ANS Forth 2012 wordset. It fails on any non-standard word; the GC stack-root
-adapter uses only `DEPTH` and `>R`/`R>`, so there are no portability exceptions.
-This keeps the "completely ANS Forth 2012" claim executable rather than
-aspirational.
+adapter uses `DEPTH` and `ALLOCATE`/`FREE`, all ANS words, so there are no
+portability exceptions. This keeps the "completely ANS Forth 2012" claim
+executable rather than aspirational.
 
 `tools/vendor-audit.py` uses the same shipped-file graph. It allows exactly one
 vendored path literal, the `BAKU-BOOT-DIR` read prefix in `4th/boot.4th`, and
@@ -520,6 +537,11 @@ self-tests, so a broken verifier cannot look green.
   `tools/region-audit.py` so an unreviewed one fails the gate. Rejected: a tagged
   store on every write, which the entry does not require and which would slow
   every mutation while adding an error path the kernel does not expect.
+- **Validate before mutating.** Requirement: a collection must not leave a
+  half-moved heap. Choice: validate the from-space, roots, data stack and tables
+  before the first write, so a collection either completes or aborts with a
+  catchable error. Rejected: unwinding a partial copy, which would have to
+  restore forwarded headers and roots after a failed move.
 - **Interpreter now, native compilation deferred.** Requirement: ANS Forth only,
   no host-language runtime. Choice: lower every form to vector IR and evaluate it
   with the tree-walking interpreter; the front end, IR and tail flags are retained
