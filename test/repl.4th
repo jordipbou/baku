@@ -240,4 +240,27 @@ s" baku.repl-eval" test-fn
 dup baku-region-of baku-region-gc = 24 check
 baku-closure-code baku-region-of baku-region-gc = 25 check
 
+\ ---------------------------------------------------------------------------
+\ A structural error escapes the line loop, so BAKU-REPL-FILE's own handler, not
+\ the top-level display, must close the stream and rethrow the original code.
+\ CATCH restores only the data-stack depth, never the argument cells, so the
+\ handler keeps its stream in a registered root; a line over the buffer limit is
+\ a structural error that skips the per-line error display.  The line reader
+\ itself is covered by REPL-READ-LINE without a boot.
+\ ---------------------------------------------------------------------------
+
+: test-repl-file-catch ( c-addr u -- code )
+	['] baku-repl-file catch ;
+
+create test-long-line 70000 allot
+
+: test-fill-long-line ( -- c-addr u )
+	70000 0 ?do [char] x test-long-line i + c! loop
+	test-long-line 70000 ;
+
+test-fill-long-line test-write-content
+s" baku-repl-script.kl" test-repl-file-catch
+	baku-repl-line-overflow 26 check-num
+s" baku-repl-script.kl" delete-file 0= 27 check
+
 ." BAKU-TEST-DONE" cr

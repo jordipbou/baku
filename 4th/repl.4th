@@ -67,16 +67,18 @@ variable baku-repl-echo
 \ so raw terminals and CRLF files behave like LF input.  The interactive path
 \ echoes printable bytes and handles backspace, because KEY does not echo on the
 \ supported targets.
+\ One line from STREAM.  The stream argument is consumed on every exit, so the
+\ caller's copy is the only reference that stays for the next line.
 : baku-repl-read-line ( stream -- eof? )
 	begin
 		dup baku-repl-byte
 		dup 0< if
-			drop true exit
+			drop drop true exit
 		then
 		dup 10 = over 13 = or if
 			drop 10 baku-repl-acc-put
 			baku-repl-echo @ if 10 emit then
-			false exit
+			drop false exit
 		then
 		dup 8 = over 127 = or if
 			drop
@@ -160,14 +162,30 @@ variable baku-repl-echo
 \ REPL; this mode is the batch form of the same top-level rules.  The stream is
 \ closed even when a structural error (for example a line over the buffer limit)
 \ escapes the loop.
+\
+\ The stream lives in a registered root instead of being a CATCH argument: on an
+\ exception CATCH restores the data-stack depth but leaves the argument cells at
+\ unspecified contents, so the handler cannot read the stream back from them.  A
+\ wrapper word takes no arguments and the catch leaves only the exception code.
+variable baku-repl-file-stream
+baku-repl-file-stream 1 baku-gc-root+
+
+: baku-repl-file-run ( -- )
+	baku-repl-file-stream @ false baku-repl-stream ;
+
 : baku-repl-file ( c-addr u -- )
 	false baku-repl-echo !
 	baku-string s" in" baku-intern baku-prim-open
-	dup false ['] baku-repl-stream catch dup if
-		>r baku-prim-close drop r> throw
+	baku-repl-file-stream !
+	['] baku-repl-file-run catch dup if
+		>r
+		baku-repl-file-stream @ baku-prim-close drop
+		baku-nil baku-repl-file-stream !
+		r> throw
 	then
 	drop
-	baku-prim-close drop ;
+	baku-repl-file-stream @ baku-prim-close drop
+	baku-nil baku-repl-file-stream ! ;
 
 \ Interactive mode: prompt, read the standard input, evaluate and display
 \ errors.  End of input returns cleanly.
