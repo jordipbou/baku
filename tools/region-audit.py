@@ -83,6 +83,12 @@ REVIEWED = {
         (1, CATEGORY_METADATA, "registered root range cells"),
     ("4th/gc.4th", "BAKU-GC-SCAN-TABLE-ENTRY"):
         (1, CATEGORY_METADATA, "updates a shape-aware table root cell"),
+    ("4th/gc.4th", "BAKU-GC-START-MARK!"):
+        (1, CATEGORY_METADATA,
+         "marks an object start in the validation bitmap"),
+    ("4th/gc.4th", "BAKU-GC-CHECK-STACKS"):
+        (1, CATEGORY_METADATA,
+         "snapshots data-stack cells into the validation buffer"),
     ("4th/gc.4th", "BAKU-GC-TABLE+"):
         (2, CATEGORY_METADATA, "table root registry cells"),
     ("4th/gc-stack.4th", "BAKU-GC-SCAN-DATA-STACK"):

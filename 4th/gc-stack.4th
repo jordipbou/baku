@@ -22,11 +22,11 @@
 \ fixnum, a symbol or a dictionary address.  A collection therefore never has a
 \ return-stack root to update.
 \
-\ The collector requires a well-formed heap: every root and table binding must
-\ point at the header cell of a from-space object.  With that precondition the
-\ copied live bytes are at most the from-space used, so a copy cannot overflow
-\ the equal-sized to-space.  A copy throw therefore means the heap broke the
-\ precondition, and a partially copied collection is not safe to resume.
+\ The collector validates the heap layout and every root before it mutates
+\ anything (see the pre-collection validation section in Gc.4th).  That pass
+\ proves the reachable bytes fit the equal-sized to-space, so BAKU-GC-COPY does
+\ not reach its to-space limit and a collection either completes or aborts
+\ before the first header or root is touched.
 
 variable baku-gc-ds-buf
 variable baku-gc-ds-total

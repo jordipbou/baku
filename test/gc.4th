@@ -26,6 +26,9 @@ variable gc-old
 variable gc-pre-list
 variable gc-pre-sym
 variable gc-new-sym
+variable gc-tx-normal
+variable gc-tx-bad
+variable gc-tx-bad-header
 
 \ Test variables are dictionary cells; the collector must update them when
 \ their contents move.
@@ -37,6 +40,8 @@ gc-cycle 1 baku-gc-root+
 gc-tail-a 1 baku-gc-root+
 gc-tail-b 1 baku-gc-root+
 gc-pre-list 1 baku-gc-root+
+gc-tx-normal 1 baku-gc-root+
+gc-tx-bad 1 baku-gc-root+
 
 : gc-garbage ( n -- )
 	0 ?do
@@ -190,10 +195,54 @@ gc-pre-list 1 baku-gc-root+
 	gc-pre-sym @ 7 baku-fixnum baku-global-define drop
 	s" g0" baku-intern 7 baku-fixnum baku-global-define drop ;
 
+\ A collection over a corrupt or interior description must abort before it
+\ forwards a single object or updates a root.  The pre-check walks the heap and
+\ every root before the copy starts; give it a header that overruns the
+\ semispace and then a structural pointer into an object payload.
+: gc-tx-objects ( -- )
+	baku-nil baku-nil baku-cons gc-tx-normal !
+	baku-nil baku-nil baku-cons gc-tx-bad !
+	gc-tx-bad @ @ gc-tx-bad-header ! ;
+
+: gc-tx-rejected? ( -- flag )
+	['] baku-gc-collect catch baku-invalid-object = ;
+
+: gc-tx-header-test ( -- )
+	baku-gc-collect
+	gc-tx-objects
+	gc-tx-bad @ @ gc-tx-bad-header @ = 70 check
+	65536 8 lshift baku-type-cons or gc-tx-bad @ !
+	gc-tx-rejected? 71 check
+	gc-tx-normal @ @ 0< 0= 72 check
+	gc-tx-normal @ @ 255 and baku-type-cons = 73 check
+	gc-tx-bad @ @ 0< 0= 74 check
+	baku-gc-collecting? @ 0= 75 check
+	gc-tx-bad-header @ gc-tx-bad @ !
+	gc-tx-rejected? 0= 76 check
+	gc-tx-normal @ baku-region-of baku-region-gc = 77 check
+	gc-tx-bad @ baku-region-of baku-region-gc = 78 check ;
+
+: gc-tx-interior-test ( -- )
+	baku-gc-collect
+	gc-tx-objects
+	gc-tx-normal @ cell + gc-tx-bad @ baku-set-hd
+	gc-tx-rejected? 79 check
+	gc-tx-normal @ @ 0< 0= 80 check
+	gc-tx-bad @ baku-hd baku-pointer? 81 check
+	gc-tx-bad @ baku-hd gc-tx-normal @ cell + = 82 check
+	baku-nil gc-tx-bad @ baku-set-hd
+	gc-tx-rejected? 0= 83 check
+	gc-tx-normal @ baku-region-of baku-region-gc = 84 check ;
+
+: gc-transaction-test ( -- )
+	gc-tx-header-test
+	gc-tx-interior-test ;
+
 : gc-run ( -- )
 	gc-supported-test
 	gc-data-stack-test
-	gc-prepend-collect-test ;
+	gc-prepend-collect-test
+	gc-transaction-test ;
 
 gc-pre-setup
 gc-run

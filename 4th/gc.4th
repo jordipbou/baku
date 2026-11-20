@@ -50,6 +50,12 @@ variable baku-gc-scan
 variable baku-gc-tmp1
 variable baku-gc-tmp2
 
+\ One bit per from-space cell marks an object start for the pre-collection
+\ validation pass.  The bitmap is host memory outside every Baku region; it
+\ holds no Shen value and is never scanned.
+variable baku-gc-start
+variable baku-gc-start-bytes
+
 0 baku-gc-created? !
 0 baku-gc-activated? !
 0 baku-gc-collecting? !
@@ -267,6 +273,197 @@ variable baku-gc-table-entry
 	loop ;
 
 \ ---------------------------------------------------------------------------
+\ Pre-collection validation
+\
+\ A collection must either complete or leave the from-space and every root
+\ unchanged.  The copy loop can only throw when the to-space fills, so before
+\ any mutation the collector proves that cannot happen:
+\
+\   * every from-space object is a complete, packed object with a valid header;
+\   * every structural field and every root is either non-GC or the header cell
+\     of one of those objects.
+\
+\ The reachable set is then a subset of the objects the linear walk found, so
+\ the bytes copied are at most the from-space used, which is at most one
+\ semispace.  A corrupt heap or an interior pointer aborts before a header,
+\ root or table cell is touched.  The bitmap marks object starts; the value
+\ check rejects any GC pointer that is not one.
+\ ---------------------------------------------------------------------------
+
+variable baku-gc-check-addr
+variable baku-gc-check-obj
+variable baku-gc-check-h
+variable baku-gc-check-type
+variable baku-gc-check-payload
+variable baku-gc-check-kind
+
+\ The bitmap index uses the cell size from the target, so the same source works
+\ on the deferred 32-bit adaptation.
+: baku-gc-start-index ( addr -- byte-addr mask )
+	baku-gc-from-start @ -
+	1 cells /
+	dup 8 / baku-gc-start @ +
+	swap 7 and 1 swap lshift ;
+
+: baku-gc-start-mark! ( addr -- )
+	baku-gc-start-index
+	over c@ or
+	swap c! ;
+
+: baku-gc-start-marked? ( addr -- flag )
+	baku-gc-start-index
+	swap c@ and 0<> ;
+
+: baku-gc-check-value ( x -- )
+	dup baku-pointer? 0= if drop exit then
+	dup baku-region-of baku-region-gc <> if drop exit then
+	baku-gc-start-marked? 0= if baku-invalid-object throw then ;
+
+: baku-gc-check-field ( addr -- ) @ baku-gc-check-value ;
+
+: baku-gc-check-object ( addr -- )
+	baku-gc-check-obj !
+	baku-gc-check-obj @ @ 255 and baku-gc-check-type !
+	baku-gc-check-obj @ @ 8 rshift baku-round-cells baku-gc-check-payload !
+	baku-gc-check-type @ baku-type-cons = if
+		baku-gc-check-obj @ cell + baku-gc-check-field
+		baku-gc-check-obj @ 2 cells + baku-gc-check-field
+	else
+		baku-gc-check-type @ baku-type-vector = if
+			baku-gc-check-payload @ cell / 0 ?do
+				baku-gc-check-obj @ i 1+ cells + baku-gc-check-field
+			loop
+		else
+			baku-gc-check-type @ baku-type-closure = if
+				baku-gc-check-obj @ 1 cells + @ baku-gc-check-kind !
+				baku-gc-check-kind @ baku-closure-interpreted =
+				baku-gc-check-kind @ baku-closure-partial = or if
+					baku-gc-check-obj @ 3 cells + baku-gc-check-field
+				then
+				baku-gc-check-obj @ 4 cells + baku-gc-check-field
+			then
+		then
+	then ;
+
+: baku-gc-heap-check ( -- )
+	baku-gc-from-here @ baku-gc-from-end @ u> if baku-invalid-object throw then
+	baku-gc-from-here @ baku-gc-from-start @ u< if baku-invalid-object throw then
+	baku-gc-start @ baku-gc-start-bytes @ 0 fill
+	baku-gc-from-start @ baku-gc-check-addr !
+	begin
+		baku-gc-check-addr @ baku-gc-from-here @ u<
+	while
+		baku-gc-check-addr @ baku-gc-start-mark!
+		baku-gc-check-addr @ @ baku-gc-check-h !
+		baku-gc-check-h @ baku-gc-forward? if baku-invalid-object throw then
+		baku-gc-check-h @ 255 and dup 1 >= swap 8 <= and 0= if
+			baku-invalid-object throw
+		then
+		baku-gc-check-h @ baku-gc-header-total
+		baku-gc-check-addr @ +
+		dup baku-gc-from-here @ u> if baku-invalid-object throw then
+		baku-gc-check-addr !
+	repeat
+	baku-gc-check-addr @ baku-gc-from-here @ <> if baku-invalid-object throw then ;
+
+: baku-gc-check-objects ( -- )
+	baku-gc-from-start @ baku-gc-check-addr !
+	begin
+		baku-gc-check-addr @ baku-gc-from-here @ u<
+	while
+		baku-gc-check-addr @ baku-gc-check-object
+		baku-gc-check-addr @ @ baku-gc-header-total baku-gc-check-addr +!
+	repeat ;
+
+: baku-gc-check-range ( start end -- )
+	begin
+		2dup u<
+	while
+		over @ baku-gc-check-value
+		swap cell+ swap
+	repeat
+	2drop ;
+
+\ PICK is not constant-space on every target: Sloth implements it as a
+\ recursive Forth word, so reading a deep data stack through PICK would grow
+\ the return stack with the stack depth.  Snapshot the cells into the same host
+\ buffer the copy adapter uses, then validate each snapshot cell.
+variable baku-gc-check-count
+variable baku-gc-check-stack-total
+
+: baku-gc-check-stacks ( -- )
+	depth dup baku-gc-check-stack-total ! baku-gc-check-count !
+	baku-gc-check-stack-total @ 0= if exit then
+	baku-gc-check-stack-total @ cells allocate throw baku-gc-ds-buf !
+	begin baku-gc-check-count @ 0> while
+		baku-gc-ds-buf @ baku-gc-check-count @ 1- cells + !
+		-1 baku-gc-check-count +!
+	repeat
+	\ Put every cell back before validating, so a rejected value cannot leave
+	\ the caller's roots half restored.
+	baku-gc-check-stack-total @ baku-gc-check-count !
+	begin baku-gc-check-count @ 0> while
+		baku-gc-ds-buf @
+			baku-gc-check-stack-total @ baku-gc-check-count @ - cells + @
+		-1 baku-gc-check-count +!
+	repeat
+	baku-gc-check-stack-total @ baku-gc-check-count !
+	begin baku-gc-check-count @ 0> while
+		baku-gc-ds-buf @ baku-gc-check-count @ 1- cells + @
+		baku-gc-check-value
+		-1 baku-gc-check-count +!
+	repeat
+	baku-gc-ds-buf @ free throw ;
+
+: baku-gc-check-roots ( -- )
+	baku-gc-root-count @ 0 ?do
+		baku-gc-roots i 2* cells + @
+		baku-gc-roots i 2* cells + cell + @
+		cells over + baku-gc-check-range
+	loop ;
+
+variable baku-gc-check-entry
+
+: baku-gc-check-table-entry ( addr-of-cell -- )
+	@ baku-gc-check-entry !
+	begin baku-gc-check-entry @ 0<> while
+		baku-gc-check-entry @ baku-pointer? 0= if exit then
+		baku-gc-check-entry @ baku-region-of baku-region-gc = if
+			baku-gc-check-entry @ baku-gc-check-value
+			baku-gc-check-entry @ 2 cells + @ baku-gc-check-entry !
+		else
+			baku-gc-check-entry @ baku-hd baku-pointer? if
+				baku-gc-check-entry @ baku-hd
+				dup baku-region-of baku-region-gc = if
+					baku-gc-check-value
+				else
+					drop
+					baku-gc-check-entry @ baku-hd
+					baku-cons-tl-addr @ baku-gc-check-value
+				then
+			then
+			baku-gc-check-entry @ baku-tl baku-gc-check-entry !
+		then
+	repeat ;
+
+: baku-gc-check-tables ( -- )
+	baku-gc-table-count @ 0 ?do
+		baku-gc-tables i 2* cells + @
+		baku-gc-tables i 2* cells + cell + @
+		0 ?do
+			dup i cells + baku-gc-check-table-entry
+		loop
+		drop
+	loop ;
+
+: baku-gc-check ( -- )
+	baku-gc-heap-check
+	baku-gc-check-objects
+	baku-gc-check-stacks
+	baku-gc-check-roots
+	baku-gc-check-tables ;
+
+\ ---------------------------------------------------------------------------
 \ Creation, activation and collection
 \ ---------------------------------------------------------------------------
 
@@ -287,6 +484,9 @@ variable baku-gc-table-entry
 	baku-gc-from-start @ baku-gc-semispace @ + baku-gc-from-end !
 	baku-gc-to-start @ baku-gc-to-here !
 	baku-gc-to-start @ baku-gc-semispace @ + baku-gc-to-end !
+	baku-gc-semispace @ 1 cells / 7 + 8 /
+	dup baku-gc-start-bytes ! allocate throw baku-gc-start !
+	baku-gc-start @ baku-gc-start-bytes @ 0 fill
 	baku-gc-from-start @
 	baku-gc-from-here baku-region-gc baku-region+ baku-gc-region !
 	1 baku-gc-created? ! ;
@@ -314,6 +514,7 @@ variable baku-gc-table-entry
 \ has been mutated yet, so the collection can abort safely.  Root sources are
 \ otherwise independent: all of them are copied before the Cheney scan.
 : baku-gc-collect-real ( -- )
+	baku-gc-check
 	baku-gc-to-start @ baku-gc-to-here !
 	baku-gc-scan-stacks
 	baku-gc-scan-roots
