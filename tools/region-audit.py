@@ -85,6 +85,9 @@ REVIEWED = {
         (1, CATEGORY_METADATA, "updates a shape-aware table root cell"),
     ("4th/gc.4th", "BAKU-GC-TABLE+"):
         (2, CATEGORY_METADATA, "table root registry cells"),
+    ("4th/gc-stack.4th", "BAKU-GC-SCAN-DATA-STACK"):
+        (1, CATEGORY_METADATA,
+         "snapshots data-stack root cells into the collection buffer"),
 
     # Scalar object fields and byte buffers carry no reference.
     ("4th/primitives.4th", "BAKU-NUM-C!"):

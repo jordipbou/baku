@@ -15,7 +15,8 @@
 \   * the Forth data stack, through a portable stack-scan adapter.
 \
 \ ANS Forth 2012 exposes no stack pointer, so the adapter walks the live data
-\ stack with DEPTH and >R/R>.  The return stack is not a root: the interpreter
+\ stack with DEPTH and snapshots the cells into a host buffer, keeping its
+\ return-stack use constant.  The return stack is not a root: the interpreter
 \ keeps no GC reference on it when an allocation can run, so the adapter never
 \ needs to reach it.  The adapter uses only ANS words and never fails activation.
 \
@@ -308,11 +309,15 @@ variable baku-gc-table-entry
 	baku-gc-from-start @ baku-gc-from-here
 	baku-region-gc baku-gc-region @ baku-region-update ;
 
+\ The data stack is scanned first because it is the only root source that
+\ allocates a host buffer.  If that allocation fails, no object or table root
+\ has been mutated yet, so the collection can abort safely.  Root sources are
+\ otherwise independent: all of them are copied before the Cheney scan.
 : baku-gc-collect-real ( -- )
 	baku-gc-to-start @ baku-gc-to-here !
+	baku-gc-scan-stacks
 	baku-gc-scan-roots
 	baku-gc-scan-tables
-	baku-gc-scan-stacks
 	baku-gc-to-start @ baku-gc-scan !
 	begin baku-gc-scan @ baku-gc-to-here @ u< while
 		baku-gc-scan-object

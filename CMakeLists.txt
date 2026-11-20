@@ -195,6 +195,11 @@ set(BAKU_GFORTH_ONLY_TESTS
 	repl         # boots the whole kernel before the REPL; Debug on Sloth takes minutes
 	kernel-suite # long collector conformance run with a large semispace
 )
+# These tests run on both targets but need a specific gforth stack size to
+# expose a host limit; the traceability audit does not exclude them from Sloth.
+set(BAKU_SMALL_RETURN_STACK_TESTS
+	gc-deep-stack # 12,000 live cells must not be moved through the return stack
+)
 foreach(test_file IN LISTS BAKU_TESTS)
 	get_filename_component(test_name ${test_file} NAME_WE)
 
@@ -227,6 +232,8 @@ foreach(test_file IN LISTS BAKU_TESTS)
 				set(forth_flags "-m 128M -d 16M -r 16M")
 			elseif(test_name IN_LIST BAKU_GFORTH_ONLY_TESTS)
 				set(forth_flags "-m 64M -d 16M -r 16M")
+			elseif(test_name IN_LIST BAKU_SMALL_RETURN_STACK_TESTS)
+				set(forth_flags "-m 64M -d 16M -r 64k")
 			else()
 				set(forth_flags "-m 64M")
 			endif()
